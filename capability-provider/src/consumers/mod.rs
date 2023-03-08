@@ -1,6 +1,6 @@
 mod command_consumer;
 mod command_worker;
-mod event_consumer;
+pub(crate) mod event_consumer;
 mod event_worker;
 mod manager;
 

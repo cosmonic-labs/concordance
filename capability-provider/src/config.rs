@@ -24,7 +24,7 @@ const ROLE_PROJECTOR: &str = "projector";
 const ROLE_PROCESS_MANAGER: &str = "process_manager";
 const ROLE_NOTIFIER: &str = "notifier";
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BaseConfiguration {}
 
 /// All entities participating in an event sourced system must declare their interest.
@@ -44,7 +44,6 @@ pub struct InterestDeclaration {
 pub enum InterestConstraint {
     Commands,
     Events,
-    None,
 }
 
 impl fmt::Display for InterestConstraint {
@@ -52,7 +51,6 @@ impl fmt::Display for InterestConstraint {
         match self {
             InterestConstraint::Commands => write!(f, "commands"),
             InterestConstraint::Events => write!(f, "events"),
-            InterestConstraint::None => write!(f, "none"),
         }
     }
 }
@@ -265,7 +263,6 @@ pub enum ActorInterest {
 
 impl ActorInterest {
     pub fn from_role_interest(input: &str, role: &ActorRole) -> Result<ActorInterest> {
-        println!("role: {role:?}, input: '{input}'");
         match role {
             ActorRole::Aggregate => Ok(ActorInterest::AggregateStream(input.to_string())),
             ActorRole::Notifier | ActorRole::Projector => {
@@ -310,7 +307,7 @@ fn to_snake_list(input: &str) -> Vec<String> {
 #[cfg(test)]
 mod test {
     use super::InterestDeclaration;
-    use crate::config::{ActorInterest, ActorRole, InterestConstraint, ProcessManagerLifetime};
+    use crate::config::{ActorInterest, ActorRole, ProcessManagerLifetime};
     use std::collections::HashMap;
     use wasmbus_rpc::core::LinkDefinition;
 
@@ -425,6 +422,5 @@ mod test {
                 stop: vec!["order_completed".to_string(), "order_canceled".to_string()]
             })
         );
-        println!("{decl:?}");
     }
 }

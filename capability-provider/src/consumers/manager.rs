@@ -19,7 +19,7 @@ pub struct ConsumerManager {
 }
 
 impl ConsumerManager {
-    fn new(evt_stream: NatsStream, cmd_stream: NatsStream) -> ConsumerManager {
+    pub fn new(evt_stream: NatsStream, cmd_stream: NatsStream) -> ConsumerManager {
         ConsumerManager {
             handles: Arc::new(RwLock::new(HashMap::default())),
             evt_stream,
@@ -52,10 +52,8 @@ impl ConsumerManager {
         if !self.has_consumer(&interest).await {
             let consumer = if interest.interest_constraint == InterestConstraint::Commands {
                 C::create(self.cmd_stream.clone(), interest.clone()).await?
-            } else if interest.interest_constraint == InterestConstraint::Events {
-                C::create(self.evt_stream.clone(), interest.clone()).await?
             } else {
-                return Err("Tried to create a consumer with an interest constraint of None. This is likely a logic failure".into());
+                C::create(self.evt_stream.clone(), interest.clone()).await?
             };
 
             let handle = tokio::spawn(
@@ -64,6 +62,17 @@ impl ConsumerManager {
             );
             let mut handles = self.handles.write().await;
             handles.insert(i.clone(), handle);
+        }
+        Ok(())
+    }
+
+    pub async fn remove_consumer(
+        &self,
+        interest: &InterestDeclaration,
+    ) -> Result<(), async_nats::Error> {
+        let mut handles = self.handles.write().await;
+        if let Some(_handle) = handles.remove(interest) {
+            // TODO send signal to stop the loop
         }
         Ok(())
     }
@@ -80,13 +89,12 @@ impl ConsumerManager {
     }
 }
 
-async fn work_fn<C, W>(mut consumer: C, worker: W, interest: InterestDeclaration) -> WorkResult<()>
+async fn work_fn<C, W>(mut consumer: C, worker: W, _interest: InterestDeclaration) -> WorkResult<()>
 where
     W: Worker + Send,
     C: Stream<Item = Result<AckableMessage<W::Message>, async_nats::Error>> + Unpin,
 {
     loop {
-        println!("*** MADE IT HERE ***");
         // Get next value from stream, returning error if the consumer stopped
         let res = consumer.next().await.ok_or(WorkError::ConsumerStopped)?;
         let res = match res {

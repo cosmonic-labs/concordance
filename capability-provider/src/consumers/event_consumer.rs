@@ -40,7 +40,7 @@ impl EventConsumer {
                 &consumer_name,
                 PullConfig {
                     durable_name: Some(consumer_name.clone()),
-                    name: Some(consumer_name.clone()),
+                    //name: Some(consumer_name.clone()),
                     description: Some(format!("Durable event consumer for {friendly_name}")),
                     ack_policy: async_nats::jetstream::consumer::AckPolicy::Explicit,
                     ack_wait: DEFAULT_ACK_TIME,
@@ -49,7 +49,7 @@ impl EventConsumer {
                     deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
                     // TODO: when NATS server and async nats client support it, convert this
                     // to declare explicit per-event interest rather than subscribing to all
-                    filter_subject: "cc.events.*".to_string(),
+                    //filter_subject: "cc.events.*".to_string(),
                     ..Default::default()
                 },
             )
@@ -127,7 +127,7 @@ impl CreateConsumer for EventConsumer {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use cloudevents::{Data, Event as CloudEvent};
     use futures::{Stream, TryStreamExt};
     use tokio::time::timeout;
@@ -142,7 +142,7 @@ mod test {
         },
     };
 
-    const EVENT1: &str = r##"
+    pub const EVENT1: &str = r##"
     {
         "data": {
             "amount": 200,
@@ -156,7 +156,7 @@ mod test {
         "type": "amount_withdrawn"
     }
 "##;
-    const EVENT2: &str = r##"
+    pub const EVENT2: &str = r##"
     {
         "data": {
             "amount": 100,
@@ -220,7 +220,7 @@ mod test {
         assert!(true);
     }
 
-    async fn wait_for_event(
+    pub async fn wait_for_event(
         mut stream: impl Stream<Item = Result<AckableMessage<CloudEvent>, async_nats::Error>> + Unpin,
     ) -> AckableMessage<CloudEvent> {
         timeout(SEND_TIMEOUT_DURATION, stream.try_next())
