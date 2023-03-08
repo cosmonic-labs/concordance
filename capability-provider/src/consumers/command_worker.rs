@@ -5,8 +5,14 @@ use crate::{consumers::WorkError, natsclient::AckableMessage};
 
 use super::{RawCommand, WorkResult, Worker};
 
-pub(crate) struct CommandWorker {
+pub struct CommandWorker {
     pub context: Context,
+}
+
+impl CommandWorker {
+    pub fn new(context: Context) -> Self {
+        CommandWorker { context }
+    }
 }
 
 #[async_trait::async_trait]

@@ -5,7 +5,7 @@ use tokio::{sync::RwLock, time::timeout};
 use tracing::{error, trace, Instrument};
 
 use crate::{
-    config::{ActorRole, InterestDeclaration},
+    config::{ActorRole, InterestConstraint, InterestDeclaration},
     natsclient::{AckableMessage, SEND_TIMEOUT_DURATION},
 };
 
@@ -27,7 +27,7 @@ impl ConsumerManager {
         }
     }
 
-    pub async fn interested_parties(&self) -> Vec<InterestDeclaration> {
+    pub async fn consumers(&self) -> Vec<InterestDeclaration> {
         let keys = {
             let lock = self.handles.read().await;
             lock.keys().cloned().collect()
@@ -50,10 +50,12 @@ impl ConsumerManager {
     {
         let i = interest.clone();
         if !self.has_consumer(&interest).await {
-            let consumer = if interest.role == ActorRole::Aggregate {
+            let consumer = if interest.interest_constraint == InterestConstraint::Commands {
                 C::create(self.cmd_stream.clone(), interest).await?
-            } else {
+            } else if interest.interest_constraint == InterestConstraint::Events {
                 C::create(self.evt_stream.clone(), interest).await?
+            } else {
+                return Err("Tried to create a consumer with an interest constraint of None. This is likely a logic failure".into());
             };
 
             let handle = tokio::spawn(
@@ -113,13 +115,48 @@ mod test {
     use crate::{
         config::InterestDeclaration,
         consumers::{
-            command_worker::CommandWorker, manager::ConsumerManager, CommandConsumer, RawCommand,
+            command_worker::CommandWorker, event_worker::EventWorker, manager::ConsumerManager,
+            CommandConsumer, EventConsumer, RawCommand,
         },
         natsclient::{
             test::{clear_streams, create_js_context, publish_command},
             NatsClient,
         },
     };
+
+    #[tokio::test]
+    async fn aggregates_get_two_consumers() {
+        let nc = async_nats::connect("127.0.0.1").await.unwrap();
+        let js = create_js_context().await;
+        clear_streams(js.clone()).await;
+
+        let client = NatsClient::new(nc.clone(), js.clone());
+        let (e, c) = client.ensure_streams().await.unwrap();
+        let cm = ConsumerManager::new(e, c);
+        let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
+
+        cm.add_consumer::<CommandWorker, CommandConsumer>(
+            interest.clone(),
+            CommandWorker {
+                context: js.clone(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let interest2 = InterestDeclaration::aggregate_for_events("MXBOB", "bankaccount");
+        cm.add_consumer::<EventWorker, EventConsumer>(
+            interest2.clone(),
+            EventWorker {
+                context: js.clone(),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(cm.has_consumer(&interest).await);
+        assert_eq!(2, cm.consumers().await.len());
+    }
 
     #[tokio::test]
     async fn command_consumer_worker_function_basic() {
@@ -130,7 +167,7 @@ mod test {
         let client = NatsClient::new(nc.clone(), js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
-        let interest = InterestDeclaration::aggregate("MXBOB", "bankaccount");
+        let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
 
         cm.add_consumer::<CommandWorker, CommandConsumer>(
             interest.clone(),
@@ -142,7 +179,7 @@ mod test {
         .unwrap();
 
         assert!(cm.has_consumer(&interest).await);
-        assert_eq!(1, cm.interested_parties().await.len());
+        assert_eq!(1, cm.consumers().await.len());
 
         let cmds = vec![
             RawCommand {

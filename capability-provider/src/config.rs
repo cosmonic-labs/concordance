@@ -2,6 +2,7 @@
 //! This module contains functionality and types for managing configuration of the capability
 //! provider both through host data and through link definitions
 
+use async_nats::Command;
 use case::CaseExt;
 use core::fmt;
 use std::collections::HashMap;
@@ -10,7 +11,7 @@ use crate::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use tracing::{error, instrument};
-use wasmbus_rpc::{core::LinkDefinition, error::RpcError};
+use wasmbus_rpc::core::LinkDefinition;
 
 const ROLE_KEY: &str = "role";
 const INTEREST_KEY: &str = "interest";
@@ -35,15 +36,92 @@ pub struct InterestDeclaration {
     pub entity_name: String,
     pub role: ActorRole,
     pub interest: ActorInterest,
+    pub interest_constraint: InterestConstraint,
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+
+pub enum InterestConstraint {
+    Commands,
+    Events,
+    None,
+}
+
+impl fmt::Display for InterestConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InterestConstraint::Commands => write!(f, "commands"),
+            InterestConstraint::Events => write!(f, "events"),
+            InterestConstraint::None => write!(f, "none"),
+        }
+    }
 }
 
 impl InterestDeclaration {
-    pub fn aggregate(actor_id: &str, entity_name: &str) -> InterestDeclaration {
+    pub fn aggregate_for_commands(actor_id: &str, entity_name: &str) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role: ActorRole::Aggregate,
+            interest_constraint: InterestConstraint::Commands,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
+        }
+    }
+
+    pub fn aggregate_for_events(actor_id: &str, entity_name: &str) -> InterestDeclaration {
+        InterestDeclaration {
+            actor_id: actor_id.to_string(),
+            entity_name: entity_name.to_string(),
+            role: ActorRole::Aggregate,
+            interest_constraint: InterestConstraint::Events,
+            interest: ActorInterest::AggregateStream(entity_name.to_string()),
+        }
+    }
+
+    // per current design, if an entity isn't an aggregate, it will never request commands
+    pub fn new(
+        actor_id: &str,
+        entity_name: &str,
+        role: ActorRole,
+        interest: ActorInterest,
+    ) -> InterestDeclaration {
+        InterestDeclaration {
+            actor_id: actor_id.to_string(),
+            entity_name: entity_name.to_string(),
+            role,
+            interest_constraint: InterestConstraint::Events,
+            interest,
+        }
+    }
+
+    pub fn from_linkdefinition(
+        source: &LinkDefinition,
+    ) -> std::result::Result<Vec<InterestDeclaration>, String> {
+        if let Some(raw) = LinkConfigurationRaw::from_linkdef(&source) {
+            let mut interested_parties = vec![];
+            let role = ActorRole::from(raw.role);
+            if role == ActorRole::Unknown {
+                return Err(format!(
+                    "Unknown declared role for actor. Aborting link set."
+                ));
+            }
+            if role == ActorRole::Aggregate {
+                interested_parties.push(Self::aggregate_for_commands(&source.actor_id, &raw.name));
+                interested_parties.push(Self::aggregate_for_events(&source.actor_id, &raw.name));
+            } else {
+                interested_parties.push(InterestDeclaration::new(
+                    &source.actor_id,
+                    &raw.name,
+                    role.clone(),
+                    ActorInterest::from_role_interest(&raw.interest, &role)
+                        .map_err(|e| e.to_string())?,
+                ));
+            }
+            Ok(interested_parties)
+        } else {
+            Err(format!(
+                "Failed to parse valid interest declaration from link definition: {source:?}"
+            ))
         }
     }
 
@@ -51,7 +129,11 @@ impl InterestDeclaration {
         let name = self.entity_name.clone();
         match self.role {
             ActorRole::Aggregate => {
-                format!("AGG_{name}")
+                if let InterestConstraint::Commands = self.interest_constraint {
+                    format!("AGG_CMD_{name}")
+                } else {
+                    format!("AGG_EVT_{name}")
+                }
             }
             ActorRole::ProcessManager => {
                 format!("PROCMAN_{name}")
@@ -73,32 +155,8 @@ impl fmt::Display for InterestDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = self.entity_name.clone();
         let roledesc = self.role.to_string();
-        write!(f, "{} ({})", name, roledesc)
-    }
-}
-impl TryFrom<&LinkDefinition> for InterestDeclaration {
-    type Error = String;
-
-    fn try_from(source: &LinkDefinition) -> std::result::Result<Self, Self::Error> {
-        if let Some(raw) = LinkConfigurationRaw::from_linkdef(&source) {
-            let role = ActorRole::from(raw.role);
-            if role == ActorRole::Unknown {
-                return Err(format!(
-                    "Unknown declared role for actor. Aborting link set."
-                ));
-            }
-            Ok(InterestDeclaration {
-                actor_id: source.actor_id.to_string(),
-                role: role.clone(),
-                entity_name: raw.name,
-                interest: ActorInterest::from_role_interest(&raw.interest, &role)
-                    .map_err(|e| e.to_string())?,
-            })
-        } else {
-            Err(format!(
-                "Failed to parse valid interest declaration from link definition: {source:?}"
-            ))
-        }
+        let constraint = self.interest_constraint.to_string();
+        write!(f, "{} ({}) - source type: {}", name, roledesc, constraint)
     }
 }
 
@@ -252,7 +310,7 @@ fn to_snake_list(input: &str) -> Vec<String> {
 #[cfg(test)]
 mod test {
     use super::InterestDeclaration;
-    use crate::config::{ActorInterest, ActorRole, ProcessManagerLifetime};
+    use crate::config::{ActorInterest, ActorRole, InterestConstraint, ProcessManagerLifetime};
     use std::collections::HashMap;
     use wasmbus_rpc::core::LinkDefinition;
 
@@ -270,7 +328,7 @@ mod test {
     #[test]
     fn rejects_empty_linkdefinition() {
         let ld = LinkDefinition::default();
-        let decl = InterestDeclaration::try_from(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(&ld);
 
         assert!(decl.is_err());
         let e = decl.err().unwrap();
@@ -285,14 +343,16 @@ mod test {
         hm.insert("NAME".to_string(), "user".to_string());
         let ld = generate_ld(hm);
 
-        let decl = InterestDeclaration::try_from(&ld).unwrap();
+        let decl = InterestDeclaration::from_linkdefinition(&ld).unwrap();
+        // Aggregates produce 2 consumers
+        assert_eq!(2, decl.len());
         assert_eq!(
-            decl.actor_id,
+            decl[0].actor_id,
             "MAEYUH6M3BIWY5GXHXXUUZNX736AKZ363UY2PQKVHOTHIC2PY2MNVMVA".to_string()
         );
-        assert_eq!(decl.role, ActorRole::Aggregate);
+        assert_eq!(decl[0].role, ActorRole::Aggregate);
         assert_eq!(
-            decl.interest,
+            decl[0].interest,
             ActorInterest::AggregateStream("user".to_string())
         );
     }
@@ -304,7 +364,7 @@ mod test {
         hm.insert("INTEREST".to_string(), "bankaccount".to_string());
         let ld = generate_ld(hm);
 
-        let decl = InterestDeclaration::try_from(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(&ld);
         assert!(decl.is_err());
         let e = decl.err().unwrap();
         assert!(e.starts_with("Failed to parse valid interest declaration from link definition:"));
@@ -320,7 +380,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = InterestDeclaration::try_from(&ld).unwrap();
+        let decl = &InterestDeclaration::from_linkdefinition(&ld).unwrap()[0];
 
         assert_eq!(
             decl.interest,
@@ -341,7 +401,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = InterestDeclaration::try_from(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(&ld);
         assert!(decl.is_err());
     }
 
@@ -355,7 +415,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = InterestDeclaration::try_from(&ld).unwrap();
+        let decl = &InterestDeclaration::from_linkdefinition(&ld).unwrap()[0];
 
         assert_eq!(
             decl.interest,

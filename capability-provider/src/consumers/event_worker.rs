@@ -6,8 +6,14 @@ use crate::{consumers::WorkError, natsclient::AckableMessage};
 
 use super::{WorkResult, Worker};
 
-pub(crate) struct EventWorker {
-    context: Context,
+pub struct EventWorker {
+    pub context: Context,
+}
+
+impl EventWorker {
+    pub fn new(context: Context) -> Self {
+        EventWorker { context }
+    }
 }
 
 #[async_trait::async_trait]

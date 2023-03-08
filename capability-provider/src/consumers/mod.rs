@@ -8,7 +8,11 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_nats::Error as NatsError;
 pub use command_consumer::{CommandConsumer, RawCommand};
+pub use command_worker::CommandWorker;
 pub use event_consumer::EventConsumer;
+pub use event_worker::EventWorker;
+pub use manager::ConsumerManager;
+
 use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{config::InterestDeclaration, natsclient::AckableMessage};

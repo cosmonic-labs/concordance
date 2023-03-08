@@ -164,7 +164,7 @@ mod test {
     use tokio::time::timeout;
 
     use crate::{
-        config::{ActorInterest, ActorRole, InterestDeclaration},
+        config::{ActorInterest, ActorRole, InterestConstraint, InterestDeclaration},
         consumers::{CommandConsumer, RawCommand},
         natsclient::{
             test::create_js_context,
@@ -207,7 +207,7 @@ mod test {
         ];
 
         // the "order" aggregate to consume here, e.g. AGG_order
-        let agg = InterestDeclaration::aggregate("Mxbob", "order");
+        let agg = InterestDeclaration::aggregate_for_commands("Mxbob", "order");
         let mut cc = CommandConsumer::try_new(c, agg).await.unwrap();
 
         let c = nc.clone();
@@ -245,6 +245,7 @@ mod test {
         let not_an_aggregate = InterestDeclaration {
             actor_id: "bob".to_string(),
             entity_name: "testbob".to_string(),
+            interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::None,
             role: ActorRole::Projector,
         };
@@ -261,12 +262,12 @@ mod test {
         let client = NatsClient::new(nc, js.clone());
         let (_e, c) = client.ensure_streams().await.unwrap();
 
-        let agg = InterestDeclaration::aggregate("Mxbob", "superbob");
+        let agg = InterestDeclaration::aggregate_for_commands("Mxbob", "superbob");
         let cc = CommandConsumer::try_new(c, agg).await;
         assert!(cc.is_ok());
 
         let cc = cc.unwrap();
-        assert_eq!(cc.name(), "AGG_superbob");
+        assert_eq!(cc.name(), "AGG_CMD_superbob");
         assert_eq!(cc.topic(), "cc.commands.superbob");
 
         clear_streams(js).await;
