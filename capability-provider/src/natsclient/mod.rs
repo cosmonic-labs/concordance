@@ -135,7 +135,7 @@ impl<T: Debug> Debug for AckableMessage<T> {
 #[cfg(test)]
 pub(crate) mod test {
     use super::{COMMANDS_STREAM_NAME, COMMANDS_STREAM_TOPIC, EVENT_STREAM_NAME};
-    use crate::{consumers::RawCommand, Result};
+    use crate::{consumers::RawCommand, state::STATE_BUCKET_NAME, Result};
 
     pub(crate) async fn create_js_context() -> async_nats::jetstream::Context {
         let nc = async_nats::connect("127.0.0.1").await.unwrap();
@@ -145,6 +145,7 @@ pub(crate) mod test {
     pub(crate) async fn clear_streams(js: async_nats::jetstream::Context) {
         js.delete_stream(EVENT_STREAM_NAME).await.ok();
         js.delete_stream(COMMANDS_STREAM_NAME).await.ok();
+        js.delete_key_value(STATE_BUCKET_NAME).await.ok();
     }
 
     pub(crate) async fn publish_command(

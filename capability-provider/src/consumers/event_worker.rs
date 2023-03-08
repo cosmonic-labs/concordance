@@ -2,17 +2,26 @@ use async_nats::jetstream::{self, stream::Config, Context};
 use cloudevents::Event as CloudEvent;
 use tracing::debug;
 
-use crate::{consumers::WorkError, natsclient::AckableMessage};
+use crate::{
+    config::InterestDeclaration, consumers::WorkError, natsclient::AckableMessage,
+    state::EntityState,
+};
 
 use super::{WorkResult, Worker};
 
 pub struct EventWorker {
     pub context: Context,
+    pub interest: InterestDeclaration,
+    pub state: EntityState,
 }
 
 impl EventWorker {
-    pub fn new(context: Context) -> Self {
-        EventWorker { context }
+    pub fn new(context: Context, interest: InterestDeclaration, state: EntityState) -> Self {
+        EventWorker {
+            context,
+            interest,
+            state,
+        }
     }
 }
 

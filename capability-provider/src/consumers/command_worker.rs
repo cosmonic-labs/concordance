@@ -1,17 +1,26 @@
 use async_nats::jetstream::Context;
 use tracing::debug;
 
-use crate::{consumers::WorkError, natsclient::AckableMessage};
+use crate::{
+    config::InterestDeclaration, consumers::WorkError, natsclient::AckableMessage,
+    state::EntityState,
+};
 
 use super::{RawCommand, WorkResult, Worker};
 
 pub struct CommandWorker {
     pub context: Context,
+    pub interest: InterestDeclaration,
+    pub state: EntityState,
 }
 
 impl CommandWorker {
-    pub fn new(context: Context) -> Self {
-        CommandWorker { context }
+    pub fn new(context: Context, interest: InterestDeclaration, state: EntityState) -> Self {
+        CommandWorker {
+            context,
+            interest,
+            state,
+        }
     }
 }
 

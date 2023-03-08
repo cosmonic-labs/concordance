@@ -11,12 +11,14 @@ use crate::consumers::{
     CommandConsumer, CommandWorker, ConsumerManager, EventConsumer, EventWorker,
 };
 use crate::router::Router;
+use crate::state::EntityState;
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
     base_config: BaseConfiguration,
     consumer_manager: ConsumerManager,
     js: async_nats::jetstream::Context,
+    state: EntityState,
     router: Router,
 }
 
@@ -43,7 +45,7 @@ impl ProviderHandler for ConcordanceProvider {
                     .consumer_manager
                     .add_consumer::<CommandWorker, CommandConsumer>(
                         decl.to_owned(),
-                        CommandWorker::new(self.js.clone()),
+                        CommandWorker::new(self.js.clone(), decl.clone(), self.state.clone()),
                     )
                     .await
                 {
@@ -58,7 +60,7 @@ impl ProviderHandler for ConcordanceProvider {
                     .consumer_manager
                     .add_consumer::<EventWorker, EventConsumer>(
                         decl.to_owned(),
-                        EventWorker::new(self.js.clone()),
+                        EventWorker::new(self.js.clone(), decl.clone(), self.state.clone()),
                     )
                     .await
                 {

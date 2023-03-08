@@ -51,15 +51,16 @@ impl ConsumerManager {
         let i = interest.clone();
         if !self.has_consumer(&interest).await {
             let consumer = if interest.interest_constraint == InterestConstraint::Commands {
-                C::create(self.cmd_stream.clone(), interest).await?
+                C::create(self.cmd_stream.clone(), interest.clone()).await?
             } else if interest.interest_constraint == InterestConstraint::Events {
-                C::create(self.evt_stream.clone(), interest).await?
+                C::create(self.evt_stream.clone(), interest.clone()).await?
             } else {
                 return Err("Tried to create a consumer with an interest constraint of None. This is likely a logic failure".into());
             };
 
             let handle = tokio::spawn(
-                work_fn(consumer, worker).instrument(tracing::info_span!("consumer_worker", %i)),
+                work_fn(consumer, worker, interest)
+                    .instrument(tracing::info_span!("consumer_worker", %i)),
             );
             let mut handles = self.handles.write().await;
             handles.insert(i.clone(), handle);
@@ -79,7 +80,7 @@ impl ConsumerManager {
     }
 }
 
-async fn work_fn<C, W>(mut consumer: C, worker: W) -> WorkResult<()>
+async fn work_fn<C, W>(mut consumer: C, worker: W, interest: InterestDeclaration) -> WorkResult<()>
 where
     W: Worker + Send,
     C: Stream<Item = Result<AckableMessage<W::Message>, async_nats::Error>> + Unpin,
@@ -122,6 +123,7 @@ mod test {
             test::{clear_streams, create_js_context, publish_command},
             NatsClient,
         },
+        state::EntityState,
     };
 
     #[tokio::test]
@@ -134,11 +136,14 @@ mod test {
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
+        let state = EntityState::new_from_context(&js).await.unwrap();
 
         cm.add_consumer::<CommandWorker, CommandConsumer>(
             interest.clone(),
             CommandWorker {
                 context: js.clone(),
+                interest: interest.clone(),
+                state: state.clone(),
             },
         )
         .await
@@ -149,6 +154,8 @@ mod test {
             interest2.clone(),
             EventWorker {
                 context: js.clone(),
+                interest: interest.clone(),
+                state,
             },
         )
         .await
@@ -168,11 +175,14 @@ mod test {
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
+        let state = EntityState::new_from_context(&js).await.unwrap();
 
         cm.add_consumer::<CommandWorker, CommandConsumer>(
             interest.clone(),
             CommandWorker {
                 context: js.clone(),
+                interest: interest.clone(),
+                state,
             },
         )
         .await
