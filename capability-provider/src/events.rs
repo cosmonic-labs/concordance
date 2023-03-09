@@ -3,6 +3,7 @@ use crate::Result;
 use case::CaseExt;
 use tracing::instrument;
 use wasmbus_rpc::error::RpcError;
+use chrono::{Utc, DateTime};
 
 use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
 
@@ -29,6 +30,7 @@ impl Into<CloudEvent> for Event {
             .id(uuid::Uuid::new_v4().to_string())
             .ty(self.event_type.to_string())
             .source("concordance")
+            .time(Utc::now())
             .build()
             .unwrap(); // if we can't serialize this envelope, something's bad enough worth panicking for
 

@@ -393,6 +393,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.0",
  "case",
+ "chrono",
  "cloudevents-sdk",
  "futures",
  "serde",
