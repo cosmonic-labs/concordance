@@ -162,6 +162,7 @@ mod test {
     use futures::{Stream, TryStreamExt};
     use serde_json::json;
     use tokio::time::timeout;
+    use wasmbus_rpc::core::LinkDefinition;
 
     use crate::{
         config::{ActorInterest, ActorRole, InterestConstraint, InterestDeclaration},
@@ -248,6 +249,7 @@ mod test {
             interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::None,
             role: ActorRole::Projector,
+            link_definition: LinkDefinition::default(),
         };
         clear_streams(js).await;
 

@@ -5,7 +5,7 @@
 use async_nats::Command;
 use case::CaseExt;
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use crate::Result;
 use base64::{engine::general_purpose, Engine as _};
@@ -30,13 +30,24 @@ pub struct BaseConfiguration {}
 /// All entities participating in an event sourced system must declare their interest.
 /// Aggregates declare interest in the stream that corresponds to their name, notifiers and process managers declare interest
 /// in an explicit list of event types.
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InterestDeclaration {
     pub actor_id: String,
     pub entity_name: String,
     pub role: ActorRole,
     pub interest: ActorInterest,
     pub interest_constraint: InterestConstraint,
+    pub link_definition: LinkDefinition,
+}
+
+impl Hash for InterestDeclaration {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.actor_id.hash(state);
+        self.entity_name.hash(state);
+        self.role.hash(state);
+        self.interest.hash(state);
+        self.interest_constraint.hash(state);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
@@ -56,6 +67,8 @@ impl fmt::Display for InterestConstraint {
 }
 
 impl InterestDeclaration {
+    /// Creates an interest declaration for an aggregate. Note that is has no link definition and as such can't
+    /// be used for dispatching to actors
     pub fn aggregate_for_commands(actor_id: &str, entity_name: &str) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
@@ -63,9 +76,12 @@ impl InterestDeclaration {
             role: ActorRole::Aggregate,
             interest_constraint: InterestConstraint::Commands,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
+            link_definition: LinkDefinition::default(),
         }
     }
 
+    /// Creates an interest declaration for an aggregate. Note that is has no link definition and as such can't
+    /// be used for dispatching to actors
     pub fn aggregate_for_events(actor_id: &str, entity_name: &str) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
@@ -73,6 +89,7 @@ impl InterestDeclaration {
             role: ActorRole::Aggregate,
             interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
+            link_definition: LinkDefinition::default(),
         }
     }
 
@@ -82,6 +99,7 @@ impl InterestDeclaration {
         entity_name: &str,
         role: ActorRole,
         interest: ActorInterest,
+        ld: LinkDefinition,
     ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
@@ -89,6 +107,7 @@ impl InterestDeclaration {
             role,
             interest_constraint: InterestConstraint::Events,
             interest,
+            link_definition: ld,
         }
     }
 
@@ -113,6 +132,7 @@ impl InterestDeclaration {
                     role.clone(),
                     ActorInterest::from_role_interest(&raw.interest, &role)
                         .map_err(|e| e.to_string())?,
+                    source.clone(),
                 ));
             }
             Ok(interested_parties)

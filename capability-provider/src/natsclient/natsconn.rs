@@ -36,7 +36,7 @@ impl NatsClient {
                     "Concordance event stream for event sourcing capability provider".to_string(),
                 ),
                 num_replicas: 1,
-                retention: async_nats::jetstream::stream::RetentionPolicy::Limits,
+                retention: async_nats::jetstream::stream::RetentionPolicy::Limits, // does not delete upon ack, overlapping interest consumers ARE allowed
                 subjects: vec![EVENTS_STREAM_TOPIC.to_owned()],
                 storage: async_nats::jetstream::stream::StorageType::File,
                 allow_rollup: false,
@@ -53,7 +53,7 @@ impl NatsClient {
                     "Concordance command stream for event sourcing capability provider".to_string(),
                 ),
                 num_replicas: 1,
-                retention: async_nats::jetstream::stream::RetentionPolicy::Limits,
+                retention: async_nats::jetstream::stream::RetentionPolicy::WorkQueue, // delete upon ack, overlapping interest consumers ARE NOT allowed
                 subjects: vec![COMMANDS_STREAM_TOPIC.to_owned()],
                 storage: async_nats::jetstream::stream::StorageType::File,
                 allow_rollup: false,

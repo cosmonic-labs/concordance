@@ -40,7 +40,7 @@ impl EventConsumer {
                 &consumer_name,
                 PullConfig {
                     durable_name: Some(consumer_name.clone()),
-                    //name: Some(consumer_name.clone()),
+                    name: Some(consumer_name.clone()),
                     description: Some(format!("Durable event consumer for {friendly_name}")),
                     ack_policy: async_nats::jetstream::consumer::AckPolicy::Explicit,
                     ack_wait: DEFAULT_ACK_TIME,
@@ -49,7 +49,7 @@ impl EventConsumer {
                     deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
                     // TODO: when NATS server and async nats client support it, convert this
                     // to declare explicit per-event interest rather than subscribing to all
-                    //filter_subject: "cc.events.*".to_string(),
+                    //filter_subject: "cc.events.a,cc.events.b,etc".to_string(),
                     ..Default::default()
                 },
             )

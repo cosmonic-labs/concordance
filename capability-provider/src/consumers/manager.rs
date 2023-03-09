@@ -119,17 +119,20 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use serde_json::json;
+    use tokio::sync::RwLock;
 
     use crate::{
         config::InterestDeclaration,
         consumers::{
             command_worker::CommandWorker, event_worker::EventWorker, manager::ConsumerManager,
-            CommandConsumer, EventConsumer, RawCommand,
+            CommandConsumer, EventConsumer, RawCommand, WorkResult, Worker,
         },
         natsclient::{
             test::{clear_streams, create_js_context, publish_command},
-            NatsClient,
+            AckableMessage, NatsClient,
         },
         state::EntityState,
     };
@@ -183,15 +186,12 @@ mod test {
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
-        let state = EntityState::new_from_context(&js).await.unwrap();
+        let _state = EntityState::new_from_context(&js).await.unwrap();
 
-        cm.add_consumer::<CommandWorker, CommandConsumer>(
+        let msgs = Arc::new(RwLock::new(Vec::new()));
+        cm.add_consumer::<MockCommandWorker, CommandConsumer>(
             interest.clone(),
-            CommandWorker {
-                context: js.clone(),
-                interest: interest.clone(),
-                state,
-            },
+            MockCommandWorker::new(msgs.clone()),
         )
         .await
         .unwrap();
@@ -228,8 +228,32 @@ mod test {
             publish_command(&c, "bankaccount", &cmd).await.unwrap();
         }
 
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        assert_eq!(3, msgs.read().await.len());
+
         clear_streams(js.clone()).await;
 
         assert!(true);
+    }
+
+    struct MockCommandWorker {
+        pub messages: Arc<RwLock<Vec<AckableMessage<RawCommand>>>>,
+    }
+
+    impl MockCommandWorker {
+        pub fn new(messages: Arc<RwLock<Vec<AckableMessage<RawCommand>>>>) -> Self {
+            MockCommandWorker { messages }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Worker for MockCommandWorker {
+        type Message = RawCommand;
+
+        async fn do_work(&self, message: AckableMessage<Self::Message>) -> WorkResult<()> {
+            let mut lock = self.messages.write().await;
+            lock.push(message);
+            Ok(())
+        }
     }
 }
