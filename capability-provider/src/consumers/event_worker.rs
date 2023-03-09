@@ -10,14 +10,21 @@ use crate::{
 use super::{WorkResult, Worker};
 
 pub struct EventWorker {
+    pub nc: async_nats::Client,
     pub context: Context,
     pub interest: InterestDeclaration,
     pub state: EntityState,
 }
 
 impl EventWorker {
-    pub fn new(context: Context, interest: InterestDeclaration, state: EntityState) -> Self {
+    pub fn new(
+        nc: async_nats::Client,
+        context: Context,
+        interest: InterestDeclaration,
+        state: EntityState,
+    ) -> Self {
         EventWorker {
+            nc,
             context,
             interest,
             state,

@@ -10,8 +10,9 @@ use std::{collections::HashMap, hash::Hash};
 use crate::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use tracing::{error, instrument};
-use wasmbus_rpc::core::LinkDefinition;
+use wasmbus_rpc::{core::LinkDefinition, wascap::prelude::KeyPair};
 
 const ROLE_KEY: &str = "role";
 const INTEREST_KEY: &str = "interest";
@@ -24,8 +25,63 @@ const ROLE_PROJECTOR: &str = "projector";
 const ROLE_PROCESS_MANAGER: &str = "process_manager";
 const ROLE_NOTIFIER: &str = "notifier";
 
-#[derive(Clone, Default)]
-pub struct BaseConfiguration {}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct BaseConfiguration {
+    /// Address of the NATS server
+    pub nats_url: String,
+    /// User JWT for connecting to the core NATS
+    pub user_jwt: Option<String>,
+    /// User seed for connecting to the core NATS
+    pub user_seed: Option<String>,
+    /// JetStream domain for the JS context used by this provider
+    pub js_domain: Option<String>,
+}
+
+impl Default for BaseConfiguration {
+    fn default() -> Self {
+        Self {
+            nats_url: "127.0.0.1:4222".to_string(),
+            user_jwt: None,
+            user_seed: None,
+            js_domain: None,
+        }
+    }
+}
+
+impl BaseConfiguration {
+    pub async fn get_nats_connection(&self) -> wasmbus_rpc::error::RpcResult<async_nats::Client> {
+        let base_opts = match (
+            self.user_jwt.clone().unwrap_or_default(),
+            self.user_seed.clone().unwrap_or_default(),
+        ) {
+            (jwt, seed) if !jwt.trim().is_empty() && !seed.trim().is_empty() => {
+                let key_pair = std::sync::Arc::new(
+                    KeyPair::from_seed(&seed).map_err(|err| format!("key init: {err}"))?,
+                );
+                async_nats::ConnectOptions::with_jwt(jwt, move |nonce| {
+                    let key_pair = key_pair.clone();
+                    async move { key_pair.sign(&nonce).map_err(async_nats::AuthError::new) }
+                })
+            }
+            (jwt, seed) if jwt.trim().is_empty() && seed.trim().is_empty() => {
+                async_nats::ConnectOptions::default()
+            }
+            _ => {
+                return Err("must provide both jwt and seed for jwt authentication".into());
+            }
+        };
+        Ok(
+            wasmbus_rpc::rpc_client::with_connection_event_logging(base_opts)
+                .name("Concordance Event Sourcing")
+                .connect(&self.nats_url)
+                .instrument(tracing::debug_span!("async connect"))
+                .await
+                .map_err(|e| {
+                    format!("failed to make NATS connection to {}: {}", self.nats_url, e)
+                })?,
+        )
+    }
+}
 
 /// All entities participating in an event sourced system must declare their interest.
 /// Aggregates declare interest in the stream that corresponds to their name, notifiers and process managers declare interest
@@ -67,29 +123,35 @@ impl fmt::Display for InterestConstraint {
 }
 
 impl InterestDeclaration {
-    /// Creates an interest declaration for an aggregate. Note that is has no link definition and as such can't
-    /// be used for dispatching to actors
-    pub fn aggregate_for_commands(actor_id: &str, entity_name: &str) -> InterestDeclaration {
+    /// Creates an interest declaration for an aggregate.
+    pub fn aggregate_for_commands(
+        actor_id: &str,
+        entity_name: &str,
+        ld: LinkDefinition,
+    ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role: ActorRole::Aggregate,
             interest_constraint: InterestConstraint::Commands,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
-            link_definition: LinkDefinition::default(),
+            link_definition: ld,
         }
     }
 
-    /// Creates an interest declaration for an aggregate. Note that is has no link definition and as such can't
-    /// be used for dispatching to actors
-    pub fn aggregate_for_events(actor_id: &str, entity_name: &str) -> InterestDeclaration {
+    /// Creates an interest declaration for an aggregate.
+    pub fn aggregate_for_events(
+        actor_id: &str,
+        entity_name: &str,
+        ld: LinkDefinition,
+    ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role: ActorRole::Aggregate,
             interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
-            link_definition: LinkDefinition::default(),
+            link_definition: ld,
         }
     }
 
@@ -123,8 +185,16 @@ impl InterestDeclaration {
                 ));
             }
             if role == ActorRole::Aggregate {
-                interested_parties.push(Self::aggregate_for_commands(&source.actor_id, &raw.name));
-                interested_parties.push(Self::aggregate_for_events(&source.actor_id, &raw.name));
+                interested_parties.push(Self::aggregate_for_commands(
+                    &source.actor_id,
+                    &raw.name,
+                    source.clone(),
+                ));
+                interested_parties.push(Self::aggregate_for_events(
+                    &source.actor_id,
+                    &raw.name,
+                    source.clone(),
+                ));
             } else {
                 interested_parties.push(InterestDeclaration::new(
                     &source.actor_id,
@@ -174,7 +244,11 @@ impl fmt::Display for InterestDeclaration {
         let name = self.entity_name.clone();
         let roledesc = self.role.to_string();
         let constraint = self.interest_constraint.to_string();
-        write!(f, "{} ({}) - source type: {}", name, roledesc, constraint)
+        write!(
+            f,
+            "{} ({}) - source type: {}, target: {}",
+            name, roledesc, constraint, self.link_definition.actor_id
+        )
     }
 }
 

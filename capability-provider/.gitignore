@@ -4,6 +4,9 @@
 # The directory Mix downloads your dependencies sources to.
 /deps/
 
+# output of running make par
+build/
+
 # Where third-party dependencies like ExDoc output generated docs.
 /doc/
 

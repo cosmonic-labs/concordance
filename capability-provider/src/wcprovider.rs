@@ -1,6 +1,8 @@
 //! # wasmCloud Provider Implementation
 //! This module contains the trait implementation mandatory for building a wasmCloud capability provider
 
+use std::sync::Arc;
+
 use async_nats::jetstream::stream::Stream as NatsStream;
 use async_trait::async_trait;
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -18,7 +20,7 @@ use crate::state::EntityState;
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
-    base_config: BaseConfiguration,
+    nc: async_nats::Client,
     consumer_manager: ConsumerManager,
     js: async_nats::jetstream::Context,
     state: EntityState,
@@ -26,19 +28,23 @@ pub struct ConcordanceProvider {
 
 impl ConcordanceProvider {
     pub async fn try_new(base_config: BaseConfiguration) -> Result<ConcordanceProvider> {
-        // TODO: use base config to establish nats connection
-        let nc = async_nats::connect("127.0.0.1").await?;
-        let js = async_nats::jetstream::new(nc.clone());
+        let nc = base_config.get_nats_connection().await?;
+        let js = if let Some(ref domain) = base_config.js_domain {
+            async_nats::jetstream::with_domain(nc.clone(), domain)
+        } else {
+            async_nats::jetstream::new(nc.clone())
+        };
+
         let client = NatsClient::new(nc.clone(), js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let state = EntityState::new_from_context(&js).await?;
 
         Ok(ConcordanceProvider {
+            nc,
             consumer_manager: cm,
             state,
             js,
-            base_config,
         })
     }
 }
@@ -70,7 +76,12 @@ impl ProviderHandler for ConcordanceProvider {
                     .consumer_manager
                     .add_consumer::<CommandWorker, CommandConsumer>(
                         decl.to_owned(),
-                        CommandWorker::new(self.js.clone(), decl.clone(), self.state.clone()),
+                        CommandWorker::new(
+                            self.nc.clone(),
+                            self.js.clone(),
+                            decl.clone(),
+                            self.state.clone(),
+                        ),
                     )
                     .await
                 {
@@ -85,7 +96,12 @@ impl ProviderHandler for ConcordanceProvider {
                     .consumer_manager
                     .add_consumer::<EventWorker, EventConsumer>(
                         decl.to_owned(),
-                        EventWorker::new(self.js.clone(), decl.clone(), self.state.clone()),
+                        EventWorker::new(
+                            self.nc.clone(),
+                            self.js.clone(),
+                            decl.clone(),
+                            self.state.clone(),
+                        ),
                     )
                     .await
                 {

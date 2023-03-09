@@ -123,6 +123,7 @@ mod test {
 
     use serde_json::json;
     use tokio::sync::RwLock;
+    use wasmbus_rpc::core::LinkDefinition;
 
     use crate::{
         config::InterestDeclaration,
@@ -146,12 +147,17 @@ mod test {
         let client = NatsClient::new(nc.clone(), js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
-        let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
+        let interest = InterestDeclaration::aggregate_for_commands(
+            "MXBOB",
+            "bankaccount",
+            LinkDefinition::default(),
+        );
         let state = EntityState::new_from_context(&js).await.unwrap();
 
         cm.add_consumer::<CommandWorker, CommandConsumer>(
             interest.clone(),
             CommandWorker {
+                nc: nc.clone(),
                 context: js.clone(),
                 interest: interest.clone(),
                 state: state.clone(),
@@ -160,10 +166,15 @@ mod test {
         .await
         .unwrap();
 
-        let interest2 = InterestDeclaration::aggregate_for_events("MXBOB", "bankaccount");
+        let interest2 = InterestDeclaration::aggregate_for_events(
+            "MXBOB",
+            "bankaccount",
+            LinkDefinition::default(),
+        );
         cm.add_consumer::<EventWorker, EventConsumer>(
             interest2.clone(),
             EventWorker {
+                nc,
                 context: js.clone(),
                 interest: interest.clone(),
                 state,
@@ -185,7 +196,11 @@ mod test {
         let client = NatsClient::new(nc.clone(), js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
-        let interest = InterestDeclaration::aggregate_for_commands("MXBOB", "bankaccount");
+        let interest = InterestDeclaration::aggregate_for_commands(
+            "MXBOB",
+            "bankaccount",
+            LinkDefinition::default(),
+        );
         let _state = EntityState::new_from_context(&js).await.unwrap();
 
         let msgs = Arc::new(RwLock::new(Vec::new()));

@@ -68,8 +68,7 @@ structure EventWithState {
     @required
     event: Event,
 
-    // Aggregate state to which the new event is applied
-    @required
+    // Aggregate state to which the new event is applied    
     state: Blob    
 }
 

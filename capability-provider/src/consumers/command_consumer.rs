@@ -208,7 +208,11 @@ mod test {
         ];
 
         // the "order" aggregate to consume here, e.g. AGG_order
-        let agg = InterestDeclaration::aggregate_for_commands("Mxbob", "order");
+        let agg = InterestDeclaration::aggregate_for_commands(
+            "Mxbob",
+            "order",
+            LinkDefinition::default(),
+        );
         let mut cc = CommandConsumer::try_new(c, agg).await.unwrap();
 
         let c = nc.clone();
@@ -264,7 +268,11 @@ mod test {
         let client = NatsClient::new(nc, js.clone());
         let (_e, c) = client.ensure_streams().await.unwrap();
 
-        let agg = InterestDeclaration::aggregate_for_commands("Mxbob", "superbob");
+        let agg = InterestDeclaration::aggregate_for_commands(
+            "Mxbob",
+            "superbob",
+            LinkDefinition::default(),
+        );
         let cc = CommandConsumer::try_new(c, agg).await;
         assert!(cc.is_ok());
 

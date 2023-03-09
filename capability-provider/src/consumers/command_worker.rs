@@ -13,14 +13,21 @@ use crate::{
 use super::{RawCommand, WorkResult, Worker};
 
 pub struct CommandWorker {
+    pub nc: async_nats::Client,
     pub context: Context,
     pub interest: InterestDeclaration,
     pub state: EntityState,
 }
 
 impl CommandWorker {
-    pub fn new(context: Context, interest: InterestDeclaration, state: EntityState) -> Self {
+    pub fn new(
+        nc: async_nats::Client,
+        context: Context,
+        interest: InterestDeclaration,
+        state: EntityState,
+    ) -> Self {
         CommandWorker {
+            nc,
             context,
             interest,
             state,
@@ -56,21 +63,29 @@ impl Worker for CommandWorker {
             key: message.key.to_string(),
             state,
             payload: serde_json::to_vec(&message.data).map_err(|e| {
-                WorkError::Other(
-                    "Raw inbound command payload could not be converted to vec".to_string(),
-                )
+                WorkError::Other(format!(
+                    "Raw inbound command payload could not be converted to vec: {e}"
+                ))
             })?,
         };
         let ctx = wasmbus_rpc::provider::prelude::Context::default();
         let outbound_events = target.handle_command(&ctx, &cmd).await.map_err(|e| {
             WorkError::Other(format!(
-                "Aggregate {} failed to handle command {:?}: {:?}",
-                self.interest.actor_id, cmd, e
+                "Aggregate {} failed to handle command {}, {}, {}, ({} bytes): {:?}",
+                self.interest.actor_id,
+                cmd.aggregate,
+                cmd.command_type,
+                cmd.key,
+                cmd.payload.len(),
+                e
             ))
         })?;
 
+        // Reminder that aggregates don't modify their own state when processing commands. That can only
+        // happen when handling events.
+
         for evt in outbound_events {
-            publish_es_event(evt)
+            publish_es_event(&self.nc, evt)
                 .await
                 .map_err(|e| WorkError::NatsError(e.into()))?;
         }
