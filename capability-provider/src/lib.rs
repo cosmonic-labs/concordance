@@ -7,6 +7,7 @@ mod eventsourcing;
 mod natsclient;
 mod state;
 mod wcprovider;
+mod workers;
 
 pub use config::BaseConfiguration;
 pub use wcprovider::ConcordanceProvider;

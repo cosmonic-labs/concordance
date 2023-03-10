@@ -128,14 +128,15 @@ mod test {
     use crate::{
         config::InterestDeclaration,
         consumers::{
-            command_worker::CommandWorker, event_worker::EventWorker, manager::ConsumerManager,
-            CommandConsumer, EventConsumer, RawCommand, WorkResult, Worker,
+            event_worker::EventWorker, manager::ConsumerManager, CommandConsumer, EventConsumer,
+            RawCommand, WorkResult, Worker,
         },
         natsclient::{
             test::{clear_streams, create_js_context, publish_command},
             AckableMessage, NatsClient,
         },
         state::EntityState,
+        workers::AggregateWorker,
     };
 
     #[tokio::test]
@@ -154,9 +155,9 @@ mod test {
         );
         let state = EntityState::new_from_context(&js).await.unwrap();
 
-        cm.add_consumer::<CommandWorker, CommandConsumer>(
+        cm.add_consumer::<AggregateWorker, CommandConsumer>(
             interest.clone(),
-            CommandWorker {
+            AggregateWorker {
                 nc: nc.clone(),
                 context: js.clone(),
                 interest: interest.clone(),

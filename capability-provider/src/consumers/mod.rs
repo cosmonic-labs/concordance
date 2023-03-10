@@ -1,5 +1,4 @@
 mod command_consumer;
-mod command_worker;
 pub(crate) mod event_consumer;
 mod event_worker;
 mod manager;
@@ -8,7 +7,6 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_nats::Error as NatsError;
 pub use command_consumer::{CommandConsumer, RawCommand};
-pub use command_worker::CommandWorker;
 pub use event_consumer::EventConsumer;
 pub use event_worker::EventWorker;
 pub use manager::ConsumerManager;

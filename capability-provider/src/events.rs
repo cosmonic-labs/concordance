@@ -1,9 +1,9 @@
 use crate::eventsourcing::Event;
 use crate::Result;
 use case::CaseExt;
+use chrono::{DateTime, Utc};
 use tracing::instrument;
 use wasmbus_rpc::error::RpcError;
-use chrono::{Utc, DateTime};
 
 use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
 

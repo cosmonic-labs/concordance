@@ -10,23 +10,23 @@ use crate::{
     state::EntityState,
 };
 
-use super::{RawCommand, WorkResult, Worker};
+use crate::consumers::{RawCommand, WorkResult, Worker};
 
-pub struct CommandWorker {
+pub struct AggregateWorker {
     pub nc: async_nats::Client,
     pub context: Context,
     pub interest: InterestDeclaration,
     pub state: EntityState,
 }
 
-impl CommandWorker {
+impl AggregateWorker {
     pub fn new(
         nc: async_nats::Client,
         context: Context,
         interest: InterestDeclaration,
         state: EntityState,
     ) -> Self {
-        CommandWorker {
+        AggregateWorker {
             nc,
             context,
             interest,
@@ -36,7 +36,7 @@ impl CommandWorker {
 }
 
 #[async_trait::async_trait]
-impl Worker for CommandWorker {
+impl Worker for AggregateWorker {
     type Message = RawCommand;
 
     /// Commands always go to aggregates, and their topic filters are always explicit to one topic, so we

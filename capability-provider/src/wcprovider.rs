@@ -10,13 +10,12 @@ use wasmbus_rpc::core::{HealthCheckRequest, HealthCheckResponse};
 use wasmbus_rpc::provider::prelude::*;
 
 use crate::config::{ActorInterest, BaseConfiguration, InterestConstraint, InterestDeclaration};
-use crate::consumers::{
-    CommandConsumer, CommandWorker, ConsumerManager, EventConsumer, EventWorker,
-};
+use crate::consumers::{CommandConsumer, ConsumerManager, EventConsumer, EventWorker};
 use crate::Result;
 
 use crate::natsclient::NatsClient;
 use crate::state::EntityState;
+use crate::workers::AggregateWorker;
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
@@ -72,11 +71,12 @@ impl ProviderHandler for ConcordanceProvider {
 
         for decl in &decls {
             if decl.interest_constraint == InterestConstraint::Commands {
+                // we know the only command consumers are aggregates, so no need to branch
                 if let Err(e) = self
                     .consumer_manager
-                    .add_consumer::<CommandWorker, CommandConsumer>(
+                    .add_consumer::<AggregateWorker, CommandConsumer>(
                         decl.to_owned(),
-                        CommandWorker::new(
+                        AggregateWorker::new(
                             self.nc.clone(),
                             self.js.clone(),
                             decl.clone(),
