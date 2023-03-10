@@ -1,21 +1,18 @@
 //! # wasmCloud Provider Implementation
 //! This module contains the trait implementation mandatory for building a wasmCloud capability provider
 
-use std::sync::Arc;
-
-use async_nats::jetstream::stream::Stream as NatsStream;
 use async_trait::async_trait;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{error, instrument, warn};
 use wasmbus_rpc::core::{HealthCheckRequest, HealthCheckResponse};
 use wasmbus_rpc::provider::prelude::*;
 
-use crate::config::{ActorInterest, BaseConfiguration, InterestConstraint, InterestDeclaration};
+use crate::config::{ActorRole, BaseConfiguration, InterestConstraint, InterestDeclaration};
 use crate::consumers::{CommandConsumer, ConsumerManager, EventConsumer, EventWorker};
 use crate::Result;
 
 use crate::natsclient::NatsClient;
 use crate::state::EntityState;
-use crate::workers::AggregateWorker;
+use crate::workers::AggregateCommandWorker;
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
@@ -46,6 +43,154 @@ impl ConcordanceProvider {
             js,
         })
     }
+
+    /// Adds a consumer and the appropriate worker to the provider's consumer manager, which will in turn create or
+    /// bind to an existing NATS consumer
+    async fn add_consumer(&self, decl: &InterestDeclaration) -> RpcResult<bool> {
+        use ActorRole::*;
+        use InterestConstraint::*;
+        Ok(match (&decl.interest_constraint, &decl.role) {
+            (Commands, _) => self.add_aggregate_cmd_consumer(decl).await,
+            (Events, ProcessManager) => self.add_procman_consumer(decl).await,
+            (Events, Projector) => self.add_projector_consumer(decl).await,
+            (Events, Notifier) => self.add_notifier_consumer(decl).await,
+            (Events, Aggregate) => self.add_aggregate_event_consumer(decl).await,
+            (a, b) => {
+                warn!("Unsupported combination of consumer and worker: {a:?} {b:?}. Ignoring.");
+                false
+            }
+        })
+    }
+
+    /// Adds a consumer to the manager for notifiers. This is currently a generic worker because
+    /// notifiers have just the simple stateless event handler contract
+    async fn add_notifier_consumer(&self, decl: &InterestDeclaration) -> bool {
+        if let Err(e) = self
+            .consumer_manager
+            .add_consumer::<EventWorker, EventConsumer>(
+                decl.to_owned(),
+                EventWorker::new(
+                    self.nc.clone(),
+                    self.js.clone(),
+                    decl.clone(),
+                    self.state.clone(),
+                ),
+            )
+            .await
+        {
+            error!(
+                "Failed to add event consumer for {} ({}): {}",
+                decl.entity_name, decl.actor_id, e
+            );
+            return false;
+        }
+        true
+    }
+
+    /// Adds a consumer to the manager for projectors. This is currently a generic worker
+    /// because projectors just expose the simple stateless event handler (projection state is the responsibility of
+    /// the actor, not the provider)
+    async fn add_projector_consumer(&self, decl: &InterestDeclaration) -> bool {
+        if let Err(e) = self
+            .consumer_manager
+            .add_consumer::<EventWorker, EventConsumer>(
+                decl.to_owned(),
+                EventWorker::new(
+                    self.nc.clone(),
+                    self.js.clone(),
+                    decl.clone(),
+                    self.state.clone(),
+                ),
+            )
+            .await
+        {
+            error!(
+                "Failed to add event consumer for {} ({}): {}",
+                decl.entity_name, decl.actor_id, e
+            );
+            return false;
+        }
+        true
+    }
+
+    /// This is currently a generic event worker as a placeholder.
+    /// TODO: this will be a process manager specific worker that manages
+    /// PM state and lifetime    
+    async fn add_procman_consumer(&self, decl: &InterestDeclaration) -> bool {
+        if let Err(e) = self
+            .consumer_manager
+            .add_consumer::<EventWorker, EventConsumer>(
+                decl.to_owned(),
+                EventWorker::new(
+                    self.nc.clone(),
+                    self.js.clone(),
+                    decl.clone(),
+                    self.state.clone(),
+                ),
+            )
+            .await
+        {
+            error!(
+                "Failed to add event consumer for {} ({}): {}",
+                decl.entity_name, decl.actor_id, e
+            );
+            return false;
+        }
+        true
+    }
+
+    /// This is a command consumer that uses an aggregate-specific worker. This worker
+    /// knows how to supply the aggregate with its internal state when applying
+    /// the command. Note that aggregates can't change state during command
+    /// application.
+    async fn add_aggregate_cmd_consumer(&self, decl: &InterestDeclaration) -> bool {
+        if let Err(e) = self
+            .consumer_manager
+            .add_consumer::<AggregateCommandWorker, CommandConsumer>(
+                decl.to_owned(),
+                AggregateCommandWorker::new(
+                    self.nc.clone(),
+                    self.js.clone(),
+                    decl.clone(),
+                    self.state.clone(),
+                ),
+            )
+            .await
+        {
+            error!(
+                "Failed to add command consumer for {} ({}): {}",
+                decl.entity_name, decl.actor_id, e
+            );
+            return false;
+        }
+        true
+    }
+
+    /// This is currently a generic event worker for an aggregate.
+    /// TODO: this needs to be replaced with an aggregate-specific event worker
+    /// that can manage aggregate state.    
+    async fn add_aggregate_event_consumer(&self, decl: &InterestDeclaration) -> bool {
+        if let Err(e) = self
+            .consumer_manager
+            .add_consumer::<EventWorker, EventConsumer>(
+                decl.to_owned(),
+                EventWorker::new(
+                    self.nc.clone(),
+                    self.js.clone(),
+                    decl.clone(),
+                    self.state.clone(),
+                ),
+            )
+            .await
+        {
+            error!(
+                "Failed to add event consumer for {} ({}): {}",
+                decl.entity_name, decl.actor_id, e
+            );
+            return false;
+        }
+        true
+    }
 }
 
 impl ProviderDispatch for ConcordanceProvider {}
@@ -70,47 +215,8 @@ impl ProviderHandler for ConcordanceProvider {
         };
 
         for decl in &decls {
-            if decl.interest_constraint == InterestConstraint::Commands {
-                // we know the only command consumers are aggregates, so no need to branch
-                if let Err(e) = self
-                    .consumer_manager
-                    .add_consumer::<AggregateWorker, CommandConsumer>(
-                        decl.to_owned(),
-                        AggregateWorker::new(
-                            self.nc.clone(),
-                            self.js.clone(),
-                            decl.clone(),
-                            self.state.clone(),
-                        ),
-                    )
-                    .await
-                {
-                    error!(
-                        "Failed to add command consumer for {} ({}): {}",
-                        decl.entity_name, decl.actor_id, e
-                    );
-                    return Ok(false);
-                }
-            } else {
-                if let Err(e) = self
-                    .consumer_manager
-                    .add_consumer::<EventWorker, EventConsumer>(
-                        decl.to_owned(),
-                        EventWorker::new(
-                            self.nc.clone(),
-                            self.js.clone(),
-                            decl.clone(),
-                            self.state.clone(),
-                        ),
-                    )
-                    .await
-                {
-                    error!(
-                        "Failed to add event consumer for {} ({}): {}",
-                        decl.entity_name, decl.actor_id, e
-                    );
-                    return Ok(false);
-                }
+            if !self.add_consumer(decl).await? {
+                return Ok(false);
             }
         }
         Ok(true)

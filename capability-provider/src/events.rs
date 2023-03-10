@@ -1,7 +1,7 @@
 use crate::eventsourcing::Event;
 use crate::Result;
 use case::CaseExt;
-use chrono::{DateTime, Utc};
+use chrono::Utc; // only using chrono because cloudevents SDK needs it
 use tracing::instrument;
 use wasmbus_rpc::error::RpcError;
 

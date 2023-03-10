@@ -136,7 +136,7 @@ mod test {
             AckableMessage, NatsClient,
         },
         state::EntityState,
-        workers::AggregateWorker,
+        workers::AggregateCommandWorker,
     };
 
     #[tokio::test]
@@ -155,9 +155,9 @@ mod test {
         );
         let state = EntityState::new_from_context(&js).await.unwrap();
 
-        cm.add_consumer::<AggregateWorker, CommandConsumer>(
+        cm.add_consumer::<AggregateCommandWorker, CommandConsumer>(
             interest.clone(),
-            AggregateWorker {
+            AggregateCommandWorker {
                 nc: nc.clone(),
                 context: js.clone(),
                 interest: interest.clone(),

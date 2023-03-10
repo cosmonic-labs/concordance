@@ -1,6 +1,5 @@
 use async_nats::jetstream::{kv::Config as KvConfig, kv::Store, Context};
-use std::sync::Arc;
-use tracing::{debug, error, instrument, trace};
+use tracing::{error, instrument, trace};
 use wasmbus_rpc::error::RpcError;
 
 use crate::{config::ActorRole, Result};

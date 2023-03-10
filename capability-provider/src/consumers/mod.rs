@@ -12,8 +12,11 @@ pub use event_worker::EventWorker;
 pub use manager::ConsumerManager;
 
 use tokio::{sync::RwLock, task::JoinHandle};
+use wasmbus_rpc::error::RpcResult;
 
-use crate::{config::InterestDeclaration, natsclient::AckableMessage};
+use crate::{
+    config::InterestDeclaration, natsclient::AckableMessage, workers::AggregateCommandWorker,
+};
 
 pub type WorkResult<T> = Result<T, WorkError>;
 pub(crate) type WorkHandles = Arc<RwLock<HashMap<InterestDeclaration, JoinHandle<WorkResult<()>>>>>;

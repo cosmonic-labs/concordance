@@ -2,7 +2,6 @@
 //! This module contains functionality and types for managing configuration of the capability
 //! provider both through host data and through link definitions
 
-use async_nats::Command;
 use case::CaseExt;
 use core::fmt;
 use std::{collections::HashMap, hash::Hash};
