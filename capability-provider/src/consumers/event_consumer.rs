@@ -1,11 +1,12 @@
 use crate::config::InterestDeclaration;
 
-use cloudevents::Event as CloudEvent;
+use cloudevents::{AttributesWriter, Event as CloudEvent};
 use std::convert::TryFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use crate::natsclient::{AckableMessage, DEFAULT_ACK_TIME};
 use async_nats::{
     jetstream::{
         consumer::pull::{Config as PullConfig, Stream as MessageStream},
@@ -13,12 +14,12 @@ use async_nats::{
     },
     Error as NatsError,
 };
+use case::CaseExt;
+use cloudevents::AttributesReader;
 use futures::{Stream, TryStreamExt};
 use tracing::{error, warn};
 
-use crate::natsclient::{AckableMessage, DEFAULT_ACK_TIME};
-
-use super::CreateConsumer;
+use super::{impl_Stream, CreateConsumer};
 
 #[allow(dead_code)]
 pub struct EventConsumer {
@@ -28,6 +29,12 @@ pub struct EventConsumer {
 }
 
 impl EventConsumer {
+    pub fn sanitize_type_name(evt: CloudEvent) -> CloudEvent {
+        let mut event = evt.clone();
+        event.set_type(evt.ty().to_string().to_snake());
+        event
+    }
+
     pub async fn try_new(
         stream: JsStream,
         interest: InterestDeclaration,
@@ -69,50 +76,8 @@ impl EventConsumer {
     }
 }
 
-impl Stream for EventConsumer {
-    type Item = Result<AckableMessage<CloudEvent>, NatsError>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.stream.try_poll_next_unpin(cx) {
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-            Poll::Ready(Some(Ok(msg))) => {
-                // Convert to our event type, skipping if we can't do it (and looping around to
-                // try the next poll)
-                let evt = match serde_json::from_slice(&msg.payload) {
-                    Ok(evt) => evt,
-                    Err(e) => {
-                        warn!(error = ?e, "Unable to decode as cloud event. Skipping message");
-                        // This is slightly janky, but rather than having to store and poll the
-                        // future (which gets a little gnarly), just pass the message onto a
-                        // spawned thread which wakes up the thread when it is done acking.
-                        let waker = cx.waker().clone();
-                        // NOTE: If we are already in a stream impl, we should be able to spawn
-                        // without worrying. A panic isn't the worst here if for some reason we
-                        // can't as it means we can't ack the message and we'll be stuck waiting
-                        // for it to deliver again until it fails
-                        tokio::spawn(async move {
-                            if let Err(e) = msg.ack().await {
-                                error!(error = %e, "Error when trying to ack skipped message, message will be redelivered")
-                            }
-                            waker.wake();
-                        });
-                        // Return a poll pending. It will then wake up and try again once it has acked
-                        return Poll::Pending;
-                    }
-                };
-                // NOTE(thomastaylor312): Ideally we'd consume `msg.payload` above with a
-                // `Cursor` and `from_reader` and then manually reconstruct the acking using the
-                // message context, but I didn't want to waste time optimizing yet
-                Poll::Ready(Some(Ok(AckableMessage {
-                    inner: evt,
-                    acker: Some(msg),
-                })))
-            }
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
+// Creates a futures::Stream for EventConsumer, pulling items of type CloudEvent
+impl_Stream!(EventConsumer; CloudEvent);
 
 #[async_trait::async_trait]
 impl CreateConsumer for EventConsumer {

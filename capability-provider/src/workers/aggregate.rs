@@ -85,7 +85,7 @@ impl Worker for AggregateCommandWorker {
 
         // Reminder that aggregates don't modify their own state when processing commands. That can only
         // happen when handling events.
-
+        // TODO: check for lease expiration thanks Victor
         for evt in outbound_events {
             publish_es_event(&self.nc, evt)
                 .await
