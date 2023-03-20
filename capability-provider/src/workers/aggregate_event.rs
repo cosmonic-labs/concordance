@@ -44,12 +44,12 @@ impl Worker for AggregateEventWorker {
 
     #[instrument(level = "debug", skip_all, fields(actor_id = self.interest.actor_id))]
     async fn do_work(&self, mut message: AckableMessage<Self::Message>) -> WorkResult<()> {
-        debug!(command = ?message.as_ref(), "Aggregate handling received event");
+        debug!(event = ?message.as_ref(), "Aggregate handling received event");
 
         let self_id = &self.interest.actor_id;
         let ce: ConcordanceEvent = message.inner.clone().into();
         if !self.interest.is_interested_in_event(&ce) {
-            debug!("Aggregate is not interested");
+            trace!("Aggregate is not interested in event: {}", ce.event_type);
             return Ok(());
         }
         let state = self
@@ -68,7 +68,7 @@ impl Worker for AggregateEventWorker {
             event: ce.clone(),
             state: state.clone(),
         };
-        debug!(
+        trace!(
             "About to apply event {} to target {}",
             ce.event_type, self.interest.actor_id
         );
