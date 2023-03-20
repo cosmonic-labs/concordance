@@ -78,8 +78,10 @@ list EventList {
 }
 
 
-structure StateAck {
-    @required
+// This is the response from an aggregate that comes back from handling an event
+// If the state returned from handling an event is missing (None in Rust), then
+// the state (if exists) will be deleted
+structure StateAck {        
     state: Blob,
 
     @required

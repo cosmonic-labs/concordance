@@ -1,5 +1,5 @@
 use async_nats::jetstream::Context;
-use tracing::debug;
+use tracing::{debug, info, instrument, trace};
 
 use crate::{
     config::InterestDeclaration,
@@ -43,6 +43,7 @@ impl Worker for AggregateCommandWorker {
 
     /// Commands always go to aggregates, and their topic filters are always explicit to one topic, so we
     /// don't need as much ceremony around interest-based dispatch for commands as we do for events
+    #[instrument(level = "debug", skip_all, fields(entity_name = self.interest.entity_name))]
     async fn do_work(&self, mut message: AckableMessage<Self::Message>) -> WorkResult<()> {
         debug!(command = ?message.as_ref(), "Handling received command");
 
@@ -51,10 +52,13 @@ impl Worker for AggregateCommandWorker {
             .fetch_state(
                 &self.interest.role,
                 &self.interest.entity_name,
-                &message.command_type,
+                &message.key,
             )
             .await
             .map_err(|e| WorkError::NatsError(format!("Failed to load state: {e}").into()))?;
+        if let Some(ref vec) = state {
+            trace!("Loaded pre-existing state - {} bytes", vec.len());
+        }
 
         // NOTE: you can't invoke `for_actor` without an active provider_main. This will even implicitly attempt
         // to create one, so be wary of using this worker for tests.
@@ -71,9 +75,14 @@ impl Worker for AggregateCommandWorker {
             })?,
         };
         let ctx = wasmbus_rpc::provider::prelude::Context::default();
+        trace!(
+            "Dispatching command {} to {}",
+            cmd.command_type,
+            self.interest.actor_id
+        );
         let outbound_events = target.handle_command(&ctx, &cmd).await.map_err(|e| {
             WorkError::Other(format!(
-                "Aggregate {} failed to handle command {}, {}, {}, ({} bytes): {:?}",
+                "Aggregate {} ({}) failed to handle command, type '{}', key '{}', ({} bytes): {:?}",
                 self.interest.actor_id,
                 cmd.aggregate,
                 cmd.command_type,
@@ -82,6 +91,7 @@ impl Worker for AggregateCommandWorker {
                 e
             ))
         })?;
+        trace!("Command handler produced {} events", outbound_events.len());
 
         // Reminder that aggregates don't modify their own state when processing commands. That can only
         // happen when handling events.

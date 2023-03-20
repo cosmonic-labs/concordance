@@ -1,0 +1,11 @@
+{
+    "command_type": "create_account", 
+    "key": "ABC123", 
+    "data": 
+        {
+            "account_number": "ABC123", 
+            "initial_balance": 4000, 
+            "min_balance": 100, 
+            "customer_id": "CUSTBOB"
+        }
+}

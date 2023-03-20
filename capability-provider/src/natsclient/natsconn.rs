@@ -11,7 +11,7 @@ use async_nats::jetstream::{
     stream::{Config as StreamConfig, Stream},
     Context,
 };
-use tracing::info;
+use tracing::{debug, info, instrument};
 use wasmbus_rpc::error::RpcError;
 
 pub(crate) struct NatsClient {
@@ -27,6 +27,7 @@ impl NatsClient {
         }
     }
 
+    #[instrument(level = "debug", skip(self))]
     pub async fn ensure_streams(&self) -> Result<(Stream, Stream)> {
         let event_stream = self
             .context
@@ -62,7 +63,7 @@ impl NatsClient {
             .await
             .map_err(|e| RpcError::Nats(format!("{e:?}")))?;
 
-        info!("Detected or created both CC_EVENTS and CC_COMMANDS");
+        debug!("Detected or created both CC_EVENTS and CC_COMMANDS");
 
         Ok((event_stream, command_stream))
     }

@@ -12,7 +12,7 @@ use crate::Result;
 
 use crate::natsclient::NatsClient;
 use crate::state::EntityState;
-use crate::workers::AggregateCommandWorker;
+use crate::workers::{AggregateCommandWorker, AggregateEventWorker};
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
@@ -166,15 +166,15 @@ impl ConcordanceProvider {
         true
     }
 
-    /// This is currently a generic event worker for an aggregate.
-    /// TODO: this needs to be replaced with an aggregate-specific event worker
-    /// that can manage aggregate state.    
+    /// This will add an event consumer for aggregates that will pull events, ask the aggregate
+    /// to apply the event to state, and persist the state. No events or commands are emitted
+    /// by an aggregate event consumer
     async fn add_aggregate_event_consumer(&self, decl: &InterestDeclaration) -> bool {
         if let Err(e) = self
             .consumer_manager
-            .add_consumer::<EventWorker, EventConsumer>(
+            .add_consumer::<AggregateEventWorker, EventConsumer>(
                 decl.to_owned(),
-                EventWorker::new(
+                AggregateEventWorker::new(
                     self.nc.clone(),
                     self.js.clone(),
                     decl.clone(),
@@ -230,11 +230,18 @@ impl ProviderHandler for ConcordanceProvider {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use std::collections::HashMap;
 
     use async_nats::jetstream::consumer::AckPolicy;
-    use wasmbus_rpc::{core::LinkDefinition, provider::ProviderHandler, wascap::prelude::KeyPair};
+    use async_trait::async_trait;
+    use wasmbus_rpc::{
+        common::{Context, Message, SendOpts, Transport},
+        core::LinkDefinition,
+        error::RpcError,
+        provider::ProviderHandler,
+        wascap::prelude::KeyPair,
+    };
 
     use crate::{
         config::BaseConfiguration,
