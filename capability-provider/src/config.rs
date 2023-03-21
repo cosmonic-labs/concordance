@@ -156,7 +156,7 @@ impl InterestDeclaration {
     }
 
     /// Creates a process manager interest
-    pub fn procman_for_events(
+    pub fn process_manager_for_events(
         actor_id: &str,
         entity_name: &str,
         lifetime: ProcessManagerLifetime,
@@ -274,6 +274,38 @@ impl fmt::Display for InterestDeclaration {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ActorInterest {
+    AggregateStream(String),
+    EventList(Vec<String>),
+    ProcessManager(ProcessManagerLifetime),
+    None,
+}
+
+impl ActorInterest {
+    pub fn from_role_interest(input: &str, role: &ActorRole) -> Result<ActorInterest> {
+        match role {
+            ActorRole::Aggregate => Ok(ActorInterest::AggregateStream(input.to_snake())),
+            ActorRole::Notifier | ActorRole::Projector => {
+                Ok(ActorInterest::EventList(to_snake_list(input)))
+            }
+            ActorRole::ProcessManager => Ok(ActorInterest::ProcessManager(
+                parse_process_manager_interest(input)?,
+            )),
+            ActorRole::Unknown => Ok(ActorInterest::None),
+        }
+    }
+
+    pub fn is_interested_in_event(&self, event_type: &str, stream: &str) -> bool {
+        match self {
+            ActorInterest::AggregateStream(s) => stream == s,
+            ActorInterest::EventList(list) => list.contains(&event_type.to_string()),
+            ActorInterest::ProcessManager(lifetime) => lifetime.is_interested_in_event(event_type),
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LinkConfigurationRaw {
     pub role: String,
@@ -365,39 +397,6 @@ impl From<String> for ActorRole {
                 error!("Unknown role declared: {u}");
                 Unknown
             }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum ActorInterest {
-    AggregateStream(String),
-    EventList(Vec<String>),
-    ProcessManager(ProcessManagerLifetime),
-    None,
-}
-
-impl ActorInterest {
-    pub fn from_role_interest(input: &str, role: &ActorRole) -> Result<ActorInterest> {
-        match role {
-            ActorRole::Aggregate => Ok(ActorInterest::AggregateStream(input.to_snake())),
-            ActorRole::Notifier | ActorRole::Projector => {
-                Ok(ActorInterest::EventList(to_snake_list(input)))
-            }
-            ActorRole::ProcessManager => Ok(ActorInterest::ProcessManager(
-                parse_process_manager_interest(input)?,
-            )),
-            ActorRole::Unknown => Ok(ActorInterest::None),
-        }
-    }
-
-    pub fn is_interested_in_event(&self, event_type: &str, stream: &str) -> bool {
-        use ActorInterest::*;
-        match self {
-            AggregateStream(s) => stream == s,
-            EventList(list) => list.contains(&event_type.to_string()),
-            ProcessManager(lifetime) => lifetime.is_interested_in_event(event_type),
-            _ => false,
         }
     }
 }
@@ -589,7 +588,7 @@ mod test {
             advance: vec!["turn_advanced".to_string(), "turn_skipped".to_string()],
             stop: vec!["game_finished".to_string(), "game_aborted".to_string()],
         };
-        let agg = InterestDeclaration::procman_for_events(
+        let agg = InterestDeclaration::process_manager_for_events(
             "MXBOB",
             "gameboard",
             lifetime,

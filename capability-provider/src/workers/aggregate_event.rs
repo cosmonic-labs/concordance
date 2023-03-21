@@ -1,6 +1,6 @@
 use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{
     config::InterestDeclaration,
@@ -49,7 +49,7 @@ impl Worker for AggregateEventWorker {
         let self_id = &self.interest.actor_id;
         let ce: ConcordanceEvent = message.inner.clone().into();
         if !self.interest.is_interested_in_event(&ce) {
-            trace!("Aggregate is not interested in event: {}", ce.event_type);
+            warn!("Aggregate is not interested in event '{}' on stream '{}'. Event could be on the wrong stream or the aggregate consumer could be misconfigured.", ce.event_type, ce.stream);
             return Ok(());
         }
         let state = self
@@ -70,7 +70,8 @@ impl Worker for AggregateEventWorker {
         };
         trace!(
             "About to apply event {} to target {}",
-            ce.event_type, self.interest.actor_id
+            ce.event_type,
+            self.interest.actor_id
         );
         match target.apply_event(&ctx, &ews).await {
             Ok(StateAck {
@@ -105,7 +106,7 @@ impl Worker for AggregateEventWorker {
                 {
                     Ok(_) => {
                         trace!("Aggregate {self_id} state deleted.");
-                        message.ack().await.ok();
+                        message.ack().await.map_err(|e| WorkError::NatsError(e))?;
                     }
                     Err(e) => {
                         error!("Failed to delete aggregate {self_id} state: {e}");

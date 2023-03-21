@@ -3,7 +3,7 @@ use crate::Result;
 use case::CaseExt;
 use chrono::Utc; // only using chrono because cloudevents SDK needs it
 use cloudevents::AttributesReader;
-use tracing::instrument;
+use tracing::{error, instrument};
 use wasmbus_rpc::error::RpcError;
 
 use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
@@ -21,7 +21,10 @@ pub(crate) async fn publish_es_event(
     let topic = format!("{EVENT_TOPIC_PREFIX}.{evt_type}");
 
     let cloud_event: CloudEvent = event.into();
-    let raw = serde_json::to_vec(&cloud_event).unwrap_or_default();
+    let Ok(raw) = serde_json::to_vec(&cloud_event) else {
+        error!("Failed to serialize a stock cloudevent. Something is very wrong.");
+        return Err(RpcError::Ser("Fatal serialization failure - could not serialize a cloud event".to_string()));
+    };
 
     nc.publish(topic, raw.into())
         .await
