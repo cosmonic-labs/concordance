@@ -291,8 +291,8 @@ pub struct StateAck {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     #[serde(with = "serde_bytes")]
-    #[serde(default)]
-    pub state: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Vec<u8>>,
     #[serde(default)]
     pub succeeded: bool,
 }
@@ -314,8 +314,12 @@ where
     } else {
         e.null()?;
     }
-    e.str("state")?;
-    e.bytes(&val.state)?;
+    if let Some(val) = val.state.as_ref() {
+        e.str("state")?;
+        e.bytes(val)?;
+    } else {
+        e.null()?;
+    }
     e.str("succeeded")?;
     e.bool(val.succeeded)?;
     Ok(())
@@ -326,7 +330,7 @@ where
 pub fn decode_state_ack(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<StateAck, RpcError> {
     let __result = {
         let mut error: Option<Option<String>> = Some(None);
-        let mut state: Option<Vec<u8>> = None;
+        let mut state: Option<Option<Vec<u8>>> = Some(None);
         let mut succeeded: Option<bool> = None;
 
         let is_array = match d.datatype()? {
@@ -350,7 +354,14 @@ pub fn decode_state_ack(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<StateA
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    1 => state = Some(d.bytes()?.to_vec()),
+                    1 => {
+                        state = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bytes()?.to_vec()))
+                        }
+                    }
                     2 => succeeded = Some(d.bool()?),
                     _ => d.skip()?,
                 }
@@ -367,7 +378,14 @@ pub fn decode_state_ack(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<StateA
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    "state" => state = Some(d.bytes()?.to_vec()),
+                    "state" => {
+                        state = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bytes()?.to_vec()))
+                        }
+                    }
                     "succeeded" => succeeded = Some(d.bool()?),
                     _ => d.skip()?,
                 }
@@ -375,14 +393,7 @@ pub fn decode_state_ack(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<StateA
         }
         StateAck {
             error: error.unwrap(),
-
-            state: if let Some(__x) = state {
-                __x
-            } else {
-                return Err(RpcError::Deser(
-                    "missing field StateAck.state (#1)".to_string(),
-                ));
-            },
+            state: state.unwrap(),
 
             succeeded: if let Some(__x) = succeeded {
                 __x

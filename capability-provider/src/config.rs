@@ -6,6 +6,7 @@ use case::CaseExt;
 use core::fmt;
 use std::{collections::HashMap, hash::Hash};
 
+use crate::eventsourcing::Event as ConcordanceEvent;
 use crate::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -154,6 +155,23 @@ impl InterestDeclaration {
         }
     }
 
+    /// Creates a process manager interest
+    pub fn process_manager_for_events(
+        actor_id: &str,
+        entity_name: &str,
+        lifetime: ProcessManagerLifetime,
+        ld: LinkDefinition,
+    ) -> InterestDeclaration {
+        InterestDeclaration {
+            actor_id: actor_id.to_string(),
+            entity_name: entity_name.to_string(),
+            role: ActorRole::ProcessManager,
+            interest: ActorInterest::ProcessManager(lifetime),
+            interest_constraint: InterestConstraint::Events,
+            link_definition: ld,
+        }
+    }
+
     // per current design, if an entity isn't an aggregate, it will never request commands
     pub fn new(
         actor_id: &str,
@@ -212,6 +230,11 @@ impl InterestDeclaration {
         }
     }
 
+    pub fn is_interested_in_event(&self, event: &ConcordanceEvent) -> bool {
+        self.interest
+            .is_interested_in_event(&event.event_type, &event.stream)
+    }
+
     pub fn consumer_name(&self) -> String {
         let name = self.entity_name.clone();
         match self.role {
@@ -248,6 +271,38 @@ impl fmt::Display for InterestDeclaration {
             "{} ({}) - source type: {}, target: {}",
             name, roledesc, constraint, self.link_definition.actor_id
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ActorInterest {
+    AggregateStream(String),
+    EventList(Vec<String>),
+    ProcessManager(ProcessManagerLifetime),
+    None,
+}
+
+impl ActorInterest {
+    pub fn from_role_interest(input: &str, role: &ActorRole) -> Result<ActorInterest> {
+        match role {
+            ActorRole::Aggregate => Ok(ActorInterest::AggregateStream(input.to_snake())),
+            ActorRole::Notifier | ActorRole::Projector => {
+                Ok(ActorInterest::EventList(to_snake_list(input)))
+            }
+            ActorRole::ProcessManager => Ok(ActorInterest::ProcessManager(
+                parse_process_manager_interest(input)?,
+            )),
+            ActorRole::Unknown => Ok(ActorInterest::None),
+        }
+    }
+
+    pub fn is_interested_in_event(&self, event_type: &str, stream: &str) -> bool {
+        match self {
+            ActorInterest::AggregateStream(s) => stream == s,
+            ActorInterest::EventList(list) => list.contains(&event_type.to_string()),
+            ActorInterest::ProcessManager(lifetime) => lifetime.is_interested_in_event(event_type),
+            _ => false,
+        }
     }
 }
 
@@ -346,29 +401,6 @@ impl From<String> for ActorRole {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
-pub enum ActorInterest {
-    AggregateStream(String),
-    EventList(Vec<String>),
-    ProcessManager(ProcessManagerLifetime),
-    None,
-}
-
-impl ActorInterest {
-    pub fn from_role_interest(input: &str, role: &ActorRole) -> Result<ActorInterest> {
-        match role {
-            ActorRole::Aggregate => Ok(ActorInterest::AggregateStream(input.to_string())),
-            ActorRole::Notifier | ActorRole::Projector => {
-                Ok(ActorInterest::EventList(to_snake_list(input)))
-            }
-            ActorRole::ProcessManager => Ok(ActorInterest::ProcessManager(
-                parse_process_manager_interest(input)?,
-            )),
-            ActorRole::Unknown => Ok(ActorInterest::None),
-        }
-    }
-}
-
 /// A process manager lifetime defines the life cycle of a long running process. A long running process in this case is any
 /// process that occurs over the span of more than one event, and does not necessarily correspond to a length of elapsed
 /// time
@@ -377,6 +409,13 @@ pub struct ProcessManagerLifetime {
     start: String,
     advance: Vec<String>,
     stop: Vec<String>,
+}
+
+impl ProcessManagerLifetime {
+    fn is_interested_in_event(&self, event_type: &str) -> bool {
+        let target = event_type.to_snake();
+        self.start == target || self.stop.contains(&target) || self.advance.contains(&target)
+    }
 }
 
 fn parse_process_manager_interest(input: &str) -> Result<ProcessManagerLifetime> {
@@ -401,6 +440,7 @@ fn to_snake_list(input: &str) -> Vec<String> {
 mod test {
     use super::InterestDeclaration;
     use crate::config::{ActorInterest, ActorRole, ProcessManagerLifetime};
+    use crate::eventsourcing::Event as ConcordanceEvent;
     use std::collections::HashMap;
     use wasmbus_rpc::core::LinkDefinition;
 
@@ -515,5 +555,58 @@ mod test {
                 stop: vec!["order_completed".to_string(), "order_canceled".to_string()]
             })
         );
+    }
+
+    #[test]
+    fn test_interest_paths() {
+        // Aggregate happy
+        let agg = InterestDeclaration::aggregate_for_events(
+            "MXBOB",
+            "gameboard",
+            LinkDefinition::default(),
+        );
+        let ev = ConcordanceEvent {
+            event_type: "player_moved".to_string(),
+            key: "PLAYERONE".to_string(),
+            payload: vec![],
+            stream: "gameboard".to_string(),
+        };
+        assert!(agg.is_interested_in_event(&ev));
+
+        // Aggregate sad
+        let ev = ConcordanceEvent {
+            event_type: "player_died".to_string(),
+            key: "PLAYERONE".to_string(),
+            payload: vec![],
+            stream: "match".to_string(),
+        };
+        assert!(!agg.is_interested_in_event(&ev));
+
+        // Procman
+        let lifetime = ProcessManagerLifetime {
+            start: "game_started".to_string(),
+            advance: vec!["turn_advanced".to_string(), "turn_skipped".to_string()],
+            stop: vec!["game_finished".to_string(), "game_aborted".to_string()],
+        };
+        let agg = InterestDeclaration::process_manager_for_events(
+            "MXBOB",
+            "gameboard",
+            lifetime,
+            LinkDefinition::default(),
+        );
+        let event_wanted = ConcordanceEvent {
+            event_type: "game_started".to_string(),
+            key: "GAME-001".to_string(),
+            stream: "gameboard".to_string(),
+            payload: vec![],
+        };
+        let event_unwanted = ConcordanceEvent {
+            event_type: "player_profile_updated".to_string(),
+            key: "GAME-001".to_string(),
+            stream: "gameboard".to_string(),
+            payload: vec![],
+        };
+        assert!(agg.is_interested_in_event(&event_wanted));
+        assert!(!agg.is_interested_in_event(&event_unwanted));
     }
 }

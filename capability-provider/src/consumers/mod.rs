@@ -72,7 +72,7 @@ macro_rules! impl_Stream {
                         let item: $u = match serde_json::from_slice(&msg.payload) {
                             Ok(item) => item,
                             Err(e) => {
-                                warn!(error = ?e, "Unable to decode as $u. Skipping message");
+                                warn!(error = ?e, "Unable to decode as <$u>. Skipping message");
                                 let waker = cx.waker().clone();
                                 tokio::spawn(async move {
                                     if let Err(e) = msg.ack().await {
