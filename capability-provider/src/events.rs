@@ -1,5 +1,5 @@
-use crate::eventsourcing::Event as ConcordanceEvent;
 use crate::Result;
+use crate::{consumers::RawCommand, eventsourcing::Event as ConcordanceEvent};
 use case::CaseExt;
 use chrono::Utc; // only using chrono because cloudevents SDK needs it
 use cloudevents::AttributesReader;
@@ -8,11 +8,16 @@ use wasmbus_rpc::error::RpcError;
 
 use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
 
-const EVENT_TOPIC_PREFIX: &str = "cc.events";
-const EXT_CONCORDANCE_KEY: &str = "x-concordance-key";
-const EXT_CONCORDANCE_STREAM: &str = "x-concordance-stream";
+pub(crate) const EVENT_TOPIC_PREFIX: &str = "cc.events";
+pub(crate) const COMMAND_TOPIC_PREFIX: &str = "cc.commands";
+// pub(crate) const EXT_CONCORDANCE_AGGREGATE_KEY: &str = "x-concordance-agg-key";
+// pub(crate) const EXT_CONCORDANCE_PM_KEY: &str = "x-concordance-pm-key";
+pub(crate) const EXT_CONCORDANCE_STREAM: &str = "x-concordance-stream";
 
-#[instrument(level = "info", skip(nc))]
+// NOTE: making the publication functions below use request versus publish forces
+// the stream to acknowledge the new entry. Un-acked messages will result in errors
+
+#[instrument(level = "debug", skip(nc))]
 pub(crate) async fn publish_es_event(
     nc: &async_nats::Client,
     event: ConcordanceEvent,
@@ -26,7 +31,24 @@ pub(crate) async fn publish_es_event(
         return Err(RpcError::Ser("Fatal serialization failure - could not serialize a cloud event".to_string()));
     };
 
-    nc.publish(topic, raw.into())
+    nc.request(topic, raw.into())
+        .await
+        .map_err(|e| RpcError::Nats(e.to_string()))?;
+
+    Ok(())
+}
+
+#[instrument(level = "debug", skip(nc))]
+pub(crate) async fn publish_raw_command(nc: &async_nats::Client, cmd: RawCommand) -> Result<()> {
+    let cmd_type = cmd.command_type.to_snake();
+    let topic = format!("{COMMAND_TOPIC_PREFIX}.{cmd_type}");
+
+    let Ok(raw) = serde_json::to_vec(&cmd) else {
+        error!("Failed to serialize an internal raw command. Something is very wrong.");
+        return Err(RpcError::Ser("Fatal serialization failure - could not serialize a raw command".to_string()));
+    };
+
+    nc.request(topic, raw.into())
         .await
         .map_err(|e| RpcError::Nats(e.to_string()))?;
 
@@ -43,7 +65,8 @@ impl Into<CloudEvent> for ConcordanceEvent {
             .ty(self.event_type.to_string())
             .source("concordance")
             .time(Utc::now())
-            .extension(EXT_CONCORDANCE_KEY, self.key)
+            // .extension(EXT_CONCORDANCE_AGGREGATE_KEY, self.aggregate_key)
+            // .extension(EXT_CONCORDANCE_PM_KEY, self.pm_key)
             .extension(EXT_CONCORDANCE_STREAM, self.stream)
             .build()
             .unwrap(); // if we can't serialize this envelope, something's bad enough worth panicking for
@@ -71,11 +94,16 @@ impl Into<ConcordanceEvent> for CloudEvent {
         };
         ConcordanceEvent {
             event_type: self.ty().to_owned(),
-            key: self
-                .extension(EXT_CONCORDANCE_KEY)
-                .cloned()
-                .unwrap_or("".to_string().into())
-                .to_string(),
+            // aggregate_key: self
+            //     .extension(EXT_CONCORDANCE_AGGREGATE_KEY)
+            //     .cloned()
+            //     .unwrap_or("".to_string().into())
+            //     .to_string(),
+            // pm_key: self
+            //     .extension(EXT_CONCORDANCE_PM_KEY)
+            //     .cloned()
+            //     .unwrap_or("".to_string().into())
+            //     .to_string(),
             stream: self
                 .extension(EXT_CONCORDANCE_STREAM)
                 .cloned()
@@ -92,10 +120,7 @@ mod test {
     use serde::{Deserialize, Serialize};
 
     use super::CloudEvent;
-    use crate::{
-        events::{EXT_CONCORDANCE_KEY, EXT_CONCORDANCE_STREAM},
-        eventsourcing::Event as ConcordanceEvent,
-    };
+    use crate::{events::EXT_CONCORDANCE_STREAM, eventsourcing::Event as ConcordanceEvent};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct CreateAccountCommand {
@@ -122,15 +147,16 @@ mod test {
 
         let internal_event = ConcordanceEvent {
             event_type: "account_created".to_string(),
-            key: "ABC123".to_string(),
+            // aggregate_key: "ABC123".to_string(),
+            // pm_key: "".to_string(),
             payload: serde_json::to_vec(&ace).unwrap(),
             stream: "bankaccount".to_string(),
         };
         let ce: CloudEvent = internal_event.into();
-        assert_eq!(
-            ce.extension(EXT_CONCORDANCE_KEY),
-            Some(&ExtensionValue::String("ABC123".to_string()))
-        );
+        // assert_eq!(
+        //     ce.extension(EXT_CONCORDANCE_AGGREGATE_KEY),
+        //     Some(&ExtensionValue::String("ABC123".to_string()))
+        // );
         assert_eq!(
             ce.extension(EXT_CONCORDANCE_STREAM),
             Some(&ExtensionValue::String("bankaccount".to_string()))

@@ -12,7 +12,7 @@ use crate::Result;
 
 use crate::natsclient::NatsClient;
 use crate::state::EntityState;
-use crate::workers::{AggregateCommandWorker, AggregateEventWorker};
+use crate::workers::{AggregateCommandWorker, AggregateEventWorker, ProcessManagerWorker};
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
@@ -51,7 +51,7 @@ impl ConcordanceProvider {
         use InterestConstraint::*;
         Ok(match (&decl.interest_constraint, &decl.role) {
             (Commands, _) => self.add_aggregate_cmd_consumer(decl).await,
-            (Events, ProcessManager) => self.add_procman_consumer(decl).await,
+            (Events, ProcessManager) => self.add_process_manager_consumer(decl).await,
             (Events, Projector) => self.add_projector_consumer(decl).await,
             (Events, Notifier) => self.add_notifier_consumer(decl).await,
             (Events, Aggregate) => self.add_aggregate_event_consumer(decl).await,
@@ -116,12 +116,12 @@ impl ConcordanceProvider {
     /// This is currently a generic event worker as a placeholder.
     /// TODO: this will be a process manager specific worker that manages
     /// PM state and lifetime    
-    async fn add_procman_consumer(&self, decl: &InterestDeclaration) -> bool {
+    async fn add_process_manager_consumer(&self, decl: &InterestDeclaration) -> bool {
         if let Err(e) = self
             .consumer_manager
-            .add_consumer::<EventWorker, EventConsumer>(
+            .add_consumer::<ProcessManagerWorker, EventConsumer>(
                 decl.to_owned(),
-                EventWorker::new(
+                ProcessManagerWorker::new(
                     self.nc.clone(),
                     self.js.clone(),
                     decl.clone(),
@@ -312,7 +312,7 @@ pub(crate) mod test {
         );
         assert_eq!(
             stream
-                .consumer_info("PROCMAN_bankaccount")
+                .consumer_info("PM_bankaccount")
                 .await
                 .unwrap()
                 .config

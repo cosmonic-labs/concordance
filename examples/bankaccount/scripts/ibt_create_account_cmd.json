@@ -1,0 +1,10 @@
+{
+  "command_type": "create_account",
+  "key": "834597DRML130",
+  "data": {
+    "account_number": "834597DRML130",
+    "initial_balance": 4000,
+    "min_balance": 100,
+    "customer_id": "CUSTIBTDEMO"
+  }
+}

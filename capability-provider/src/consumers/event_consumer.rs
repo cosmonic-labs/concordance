@@ -146,8 +146,12 @@ pub(crate) mod test {
         let client = NatsClient::new(nc.clone(), js.clone());
         let (e, _c) = client.ensure_streams().await.unwrap();
 
-        let agg =
-            InterestDeclaration::aggregate_for_events("Mxbob", "order", LinkDefinition::default());
+        let agg = InterestDeclaration::aggregate_for_events(
+            "Mxbob",
+            "order",
+            "order_id",
+            LinkDefinition::default(),
+        );
         let mut ec = EventConsumer::try_new(e, agg).await.unwrap();
 
         publish_event(&nc, "amount_withdrawn", EVENT1)

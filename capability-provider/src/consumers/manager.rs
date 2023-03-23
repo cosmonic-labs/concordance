@@ -151,6 +151,7 @@ mod test {
         let interest = InterestDeclaration::aggregate_for_commands(
             "MXBOB",
             "bankaccount",
+            "account_number",
             LinkDefinition::default(),
         );
         let state = EntityState::new_from_context(&js).await.unwrap();
@@ -170,6 +171,7 @@ mod test {
         let interest2 = InterestDeclaration::aggregate_for_events(
             "MXBOB",
             "bankaccount",
+            "account_number",
             LinkDefinition::default(),
         );
         cm.add_consumer::<EventWorker, EventConsumer>(
@@ -200,6 +202,7 @@ mod test {
         let interest = InterestDeclaration::aggregate_for_commands(
             "MXBOB",
             "bankaccount",
+            "account_number",
             LinkDefinition::default(),
         );
         let _state = EntityState::new_from_context(&js).await.unwrap();

@@ -5,6 +5,7 @@ use org.wasmcloud.model#U32
 use org.wasmcloud.model#U64
 
 use com.cosmonic.eventsourcing#Event
+use com.cosmonic.eventsourcing#EventWithState
 
 
 
@@ -31,6 +32,27 @@ operation ApplyEvent {
     input: EventWithState,
     output: StateAck
 }
+
+
+
+list EventList {
+    member: Event
+}
+
+
+// This is the response from an aggregate that comes back from handling an event
+// If the state returned from handling an event is missing (None in Rust), then
+// the state (if exists) will be deleted
+structure StateAck {        
+    state: Blob,
+
+    @required
+    succeeded: Boolean,
+
+    /// Optional error message
+    error: String
+}
+
 
 // The stateful command is always specifically directed to an instance of an aggregate, identified
 // by the aggregate's name and the unique key. For example, the `Order` aggregate and the `key` field
@@ -60,34 +82,3 @@ structure StatefulCommand {
     @required
     key: String
 }
-
-// This is passed to an aggregate to allow it to apply the event to a given state. The handler must be a pure 
-// function such that f(event, state) = state'
-structure EventWithState {
-    // Event to be applied
-    @required
-    event: Event,
-
-    // Aggregate state to which the new event is applied    
-    state: Blob    
-}
-
-
-list EventList {
-    member: Event
-}
-
-
-// This is the response from an aggregate that comes back from handling an event
-// If the state returned from handling an event is missing (None in Rust), then
-// the state (if exists) will be deleted
-structure StateAck {        
-    state: Blob,
-
-    @required
-    succeeded: Boolean,
-
-    /// Optional error message
-    error: String
-}
-

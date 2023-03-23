@@ -1,6 +1,7 @@
 use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
 use tracing::{debug, error, info, instrument, trace, warn};
+use wasmbus_rpc::error::RpcError;
 
 use crate::{
     config::InterestDeclaration,
@@ -50,11 +51,15 @@ impl Worker for AggregateEventWorker {
         let ce: ConcordanceEvent = message.inner.clone().into();
         if !self.interest.is_interested_in_event(&ce) {
             warn!("Aggregate is not interested in event '{}' on stream '{}'. Event could be on the wrong stream or the aggregate consumer could be misconfigured.", ce.event_type, ce.stream);
+            message.ack().await.map_err(|e| WorkError::NatsError(e))?;
             return Ok(());
         }
+        let evt_payload: serde_json::Value =
+            serde_json::from_slice(&ce.payload).unwrap_or_default();
+        let key = self.interest.extract_key_value_from_payload(&evt_payload);
         let state = self
             .state
-            .fetch_state(&self.interest.role, &self.interest.entity_name, &ce.key)
+            .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
             .await
             .map_err(|e| {
                 WorkError::NatsError(
@@ -73,69 +78,104 @@ impl Worker for AggregateEventWorker {
             ce.event_type,
             self.interest.actor_id
         );
-        match target.apply_event(&ctx, &ews).await {
+
+        let state_ack = target.apply_event(&ctx, &ews).await;
+        // Failures will result in a message nack
+        self.adjust_state(&mut message, state_ack, &key).await?;
+
+        Ok(())
+    }
+}
+
+impl AggregateEventWorker {
+    async fn adjust_state(
+        &self,
+        msg: &mut AckableMessage<CloudEvent>,
+        state_ack: Result<StateAck, RpcError>,
+        key: &str,
+    ) -> WorkResult<()> {
+        match state_ack {
             Ok(StateAck {
                 succeeded: true,
                 state: Some(s),
                 ..
-            }) => {
-                match self
-                    .state
-                    .write_state(&self.interest.role, &self.interest.entity_name, &ce.key, s)
-                    .await
-                {
-                    Ok(_) => {
-                        trace!("Aggregate {self_id} state written. Acknowledging event.");
-                        message.ack().await.map_err(|e| WorkError::NatsError(e))?;
-                    }
-                    Err(e) => {
-                        error!("Failed to write state after event application, aggregate is now outdated: {e}");
-                        message.nack().await;
-                    }
-                }
-            }
+            }) => self.save_state(msg, key, s).await?,
             Ok(StateAck {
                 succeeded: true,
                 state: None,
                 ..
-            }) => {
-                match self
-                    .state
-                    .remove_state(&self.interest.role, &self.interest.entity_name, &ce.key)
-                    .await
-                {
-                    Ok(_) => {
-                        trace!("Aggregate {self_id} state deleted.");
-                        message.ack().await.map_err(|e| WorkError::NatsError(e))?;
-                    }
-                    Err(e) => {
-                        error!("Failed to delete aggregate {self_id} state: {e}");
-                        message.nack().await;
-                    }
-                }
-            }
+            }) => self.remove_state(msg, key).await?,
             Ok(StateAck {
                 succeeded: false,
                 error: Some(e),
                 ..
             }) => {
                 error!("Failed to apply event to target actor: {e}");
-                message.nack().await;
+                msg.nack().await;
             }
             Ok(StateAck {
                 succeeded: false,
                 error: None,
                 ..
             }) => {
-                error!("Failed to apply event to target actor - unspecified failure");
-                message.nack().await;
+                error!("Failed to apply event to target actor: unspecified error");
+                msg.nack().await;
             }
             Err(e) => {
                 error!("Failed to apply event to target actor: {e}");
-                message.nack().await;
+                msg.nack().await;
+            }
+        }
+        Ok(())
+    }
+
+    async fn save_state(
+        &self,
+        msg: &mut AckableMessage<CloudEvent>,
+        key: &str,
+        data: Vec<u8>,
+    ) -> WorkResult<()> {
+        let self_id = &self.interest.actor_id;
+        match self
+            .state
+            .write_state(&self.interest.role, &self.interest.entity_name, &key, data)
+            .await
+        {
+            Ok(_) => {
+                trace!("Aggregate {self_id} state written. Acknowledging event.");
+                msg.ack().await.map_err(|e| WorkError::NatsError(e))?;
+            }
+            Err(e) => {
+                error!(
+                    "Failed to write state after event application, aggregate is now outdated: {e}"
+                );
+                msg.nack().await;
             }
         }
 
+        Ok(())
+    }
+
+    async fn remove_state(
+        &self,
+        msg: &mut AckableMessage<CloudEvent>,
+        key: &str,
+    ) -> WorkResult<()> {
+        let self_id = &self.interest.actor_id;
+        match self
+            .state
+            .remove_state(&self.interest.role, &self.interest.entity_name, &key)
+            .await
+        {
+            Ok(_) => {
+                trace!("Aggregate {self_id} state deleted.");
+                msg.ack().await.map_err(|e| WorkError::NatsError(e))?;
+            }
+            Err(e) => {
+                error!("Failed to delete aggregate {self_id} state: {e}");
+                msg.nack().await;
+            }
+        }
         Ok(())
     }
 }
