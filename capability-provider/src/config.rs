@@ -601,20 +601,16 @@ mod test {
         );
         let ev = ConcordanceEvent {
             event_type: "player_moved".to_string(),
-            // aggregate_key: "PLAYERONE".to_string(),
             payload: vec![],
             stream: "gameboard".to_string(),
-            // pm_key: "".to_string(),
         };
         assert!(agg.is_interested_in_event(&ev));
 
         // Aggregate sad
         let ev = ConcordanceEvent {
             event_type: "player_died".to_string(),
-            // aggregate_key: "PLAYERONE".to_string(),
             payload: vec![],
             stream: "match".to_string(),
-            // pm_key: "".to_string(),
         };
         assert!(!agg.is_interested_in_event(&ev));
 
@@ -633,17 +629,13 @@ mod test {
         );
         let event_wanted = ConcordanceEvent {
             event_type: "game_started".to_string(),
-            // aggregate_key: "GAME-001".to_string(),
             stream: "gameboard".to_string(),
             payload: vec![],
-            // pm_key: "".to_string(),
         };
         let event_unwanted = ConcordanceEvent {
             event_type: "player_profile_updated".to_string(),
-            // aggregate_key: "GAME-001".to_string(),
             stream: "gameboard".to_string(),
             payload: vec![],
-            // pm_key: "".to_string(),
         };
         assert!(agg.is_interested_in_event(&event_wanted));
         assert!(!agg.is_interested_in_event(&event_unwanted));

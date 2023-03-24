@@ -106,9 +106,11 @@ impl Worker for AggregateCommandWorker {
                 .await
                 .map_err(|e| WorkError::NatsError(e.into()))
             {
-                error!("Failed to publish outbound event {evt_type} in response to command {cmd_type}");
+                error!(
+                    "Failed to publish outbound event {evt_type} in response to command {cmd_type}"
+                );
                 message.nack().await;
-                return Ok(())
+                return Ok(());
             }
         }
 

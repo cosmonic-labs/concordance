@@ -58,12 +58,9 @@ impl Worker for AggregateEventWorker {
             message.ack().await.map_err(|e| WorkError::NatsError(e))?;
             return Ok(());
         }
-        println!("**> KEY FIELD {}", self.interest.key_field);
         let evt_payload: serde_json::Value =
             serde_json::from_slice(&ce.payload).unwrap_or_default();
-        println!("**> {evt_payload:?}");
         let key = self.interest.extract_key_value_from_payload(&evt_payload);
-        println!("**> '{key}'");
         let state = if !key.is_empty() {
             self.state
                 .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
