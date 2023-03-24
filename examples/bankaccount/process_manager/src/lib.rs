@@ -10,6 +10,8 @@ use wasmcloud_interface_logging::{error, info};
 #[allow(dead_code)]
 mod eventsourcing;
 
+const BANKACCOUNT_STREAM:&str = "bankaccount";
+
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, ProcessManagerService)]
 struct InterbankTransferProcessManager {}
@@ -81,7 +83,8 @@ async fn handle_wire_transfer_requested(
         commands: vec![OutputCommand {
             command_type: RESERVE_FUNDS_TYPE.to_string(),
             json_payload: serde_json::to_vec(&cmd).unwrap_or_default(),
-            key: cmd.account_number.to_string(), // all commands are targeted at instances of an aggregate
+            aggregate_stream: BANKACCOUNT_STREAM.to_string(),
+            aggregate_key: cmd.account_number.to_string(), // all commands are targeted at instances of an aggregate
         }],
         state: Some(new_state.to_bytes()),
     })
@@ -111,7 +114,8 @@ fn handle_wire_funds_reserved(
         commands: vec![OutputCommand {
             command_type: INITIATE_TRANSFER_TYPE.to_string(),
             json_payload: serde_json::to_vec(&cmd).unwrap_or_default(),
-            key: cmd.account_number.to_string(),
+            aggregate_stream: BANKACCOUNT_STREAM.to_string(),
+            aggregate_key: cmd.account_number.to_string(),
         }],
         state: Some(state.to_bytes()),
     })
@@ -157,7 +161,8 @@ fn handle_interbank_xfer_completed(
         commands: vec![OutputCommand {
             command_type: WITHDRAW_RESERVED_FUNDS_TYPE.to_string(),
             json_payload: serde_json::to_vec(&cmd).unwrap_or_default(),
-            key: state.account_number, // this is going "to" the aggregate stream, so it's the aggregate key that matters, not the PM
+            aggregate_stream: BANKACCOUNT_STREAM.to_string(),
+            aggregate_key: state.account_number, // this is going "to" the aggregate stream, so it's the aggregate key that matters, not the PM
         }],
         state: None,
     })
@@ -183,7 +188,8 @@ fn handle_interbank_xfer_failed(
         commands: vec![OutputCommand {
             command_type: RELEASE_RESERVED_FUNDS_TYPE.to_string(),
             json_payload: serde_json::to_vec(&cmd).unwrap_or_default(),
-            key: state.account_number, // this command goes out to the aggregate bank account, so the key is the aggregate's key
+            aggregate_stream: BANKACCOUNT_STREAM.to_string(),
+            aggregate_key: state.account_number, // this command goes out to the aggregate bank account, so the key is the aggregate's key
         }],
         state: None,
     })

@@ -1,5 +1,5 @@
 use async_nats::jetstream::Context;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, error, info, instrument, trace};
 
 use crate::{
     config::InterestDeclaration,
@@ -93,13 +93,23 @@ impl Worker for AggregateCommandWorker {
         })?;
         trace!("Command handler produced {} events", outbound_events.len());
 
+        let cmd_type = cmd.command_type.clone();
+
         // Reminder that aggregates don't modify their own state when processing commands. That can only
         // happen when handling events.
-        // TODO: check for lease expiration thanks Victor
+
+        // TODO: check for lease expiration (skip outbound pub if callee timeout would have already expired) - thanks Victor
+
         for evt in outbound_events {
-            publish_es_event(&self.nc, evt)
+            let evt_type = evt.event_type.clone();
+            if let Err(_e) = publish_es_event(&self.nc, evt)
                 .await
-                .map_err(|e| WorkError::NatsError(e.into()))?;
+                .map_err(|e| WorkError::NatsError(e.into()))
+            {
+                error!("Failed to publish outbound event {evt_type} in response to command {cmd_type}");
+                message.nack().await;
+                return Ok(())
+            }
         }
 
         // Now that the outbound has been processed, ack the inbound (which deletes the command from the work queue CC_COMMANDS stream)

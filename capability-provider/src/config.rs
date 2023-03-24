@@ -103,7 +103,7 @@ impl InterestDeclaration {
         payload
             .get(&self.key_field)
             .cloned()
-            .map(|s| s.to_string())
+            .map(|s| s.as_str().unwrap_or_default().trim().to_string())
             .unwrap_or_default()
     }
 }

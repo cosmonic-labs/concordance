@@ -324,6 +324,10 @@ pub fn decode_event_with_state(
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OutputCommand {
+    #[serde(default)]
+    pub aggregate_key: String,
+    #[serde(default)]
+    pub aggregate_stream: String,
     #[serde(rename = "commandType")]
     #[serde(default)]
     pub command_type: String,
@@ -331,8 +335,6 @@ pub struct OutputCommand {
     #[serde(with = "serde_bytes")]
     #[serde(default)]
     pub json_payload: Vec<u8>,
-    #[serde(default)]
-    pub key: String,
 }
 
 // Encode OutputCommand as CBOR and append to output stream
@@ -345,13 +347,15 @@ pub fn encode_output_command<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(3)?;
+    e.map(4)?;
+    e.str("aggregate_key")?;
+    e.str(&val.aggregate_key)?;
+    e.str("aggregate_stream")?;
+    e.str(&val.aggregate_stream)?;
     e.str("commandType")?;
     e.str(&val.command_type)?;
     e.str("jsonPayload")?;
     e.bytes(&val.json_payload)?;
-    e.str("key")?;
-    e.str(&val.key)?;
     Ok(())
 }
 
@@ -361,9 +365,10 @@ pub fn decode_output_command(
     d: &mut wasmbus_rpc::cbor::Decoder<'_>,
 ) -> Result<OutputCommand, RpcError> {
     let __result = {
+        let mut aggregate_key: Option<String> = None;
+        let mut aggregate_stream: Option<String> = None;
         let mut command_type: Option<String> = None;
         let mut json_payload: Option<Vec<u8>> = None;
-        let mut key: Option<String> = None;
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -378,9 +383,10 @@ pub fn decode_output_command(
             let len = d.fixed_array()?;
             for __i in 0..(len as usize) {
                 match __i {
-                    0 => command_type = Some(d.str()?.to_string()),
-                    1 => json_payload = Some(d.bytes()?.to_vec()),
-                    2 => key = Some(d.str()?.to_string()),
+                    0 => aggregate_key = Some(d.str()?.to_string()),
+                    1 => aggregate_stream = Some(d.str()?.to_string()),
+                    2 => command_type = Some(d.str()?.to_string()),
+                    3 => json_payload = Some(d.bytes()?.to_vec()),
                     _ => d.skip()?,
                 }
             }
@@ -388,19 +394,36 @@ pub fn decode_output_command(
             let len = d.fixed_map()?;
             for __i in 0..(len as usize) {
                 match d.str()? {
+                    "aggregate_key" => aggregate_key = Some(d.str()?.to_string()),
+                    "aggregate_stream" => aggregate_stream = Some(d.str()?.to_string()),
                     "commandType" => command_type = Some(d.str()?.to_string()),
                     "jsonPayload" => json_payload = Some(d.bytes()?.to_vec()),
-                    "key" => key = Some(d.str()?.to_string()),
                     _ => d.skip()?,
                 }
             }
         }
         OutputCommand {
+            aggregate_key: if let Some(__x) = aggregate_key {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.aggregate_key (#0)".to_string(),
+                ));
+            },
+
+            aggregate_stream: if let Some(__x) = aggregate_stream {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.aggregate_stream (#1)".to_string(),
+                ));
+            },
+
             command_type: if let Some(__x) = command_type {
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field OutputCommand.command_type (#0)".to_string(),
+                    "missing field OutputCommand.command_type (#2)".to_string(),
                 ));
             },
 
@@ -408,15 +431,7 @@ pub fn decode_output_command(
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field OutputCommand.json_payload (#1)".to_string(),
-                ));
-            },
-
-            key: if let Some(__x) = key {
-                __x
-            } else {
-                return Err(RpcError::Deser(
-                    "missing field OutputCommand.key (#2)".to_string(),
+                    "missing field OutputCommand.json_payload (#3)".to_string(),
                 ));
             },
         }

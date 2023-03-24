@@ -44,7 +44,10 @@ structure OutputCommand {
     commandType: String,
 
     @required
-    key: String,
+    aggregate_stream: String,
+
+    @required
+    aggregate_key: String,
 
     // The JSON payload will be converted into a Rust serde_json::Value and ultimately passed on a RawCommand and published to CC_COMMANDS
     @required

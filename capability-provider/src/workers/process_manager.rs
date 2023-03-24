@@ -52,7 +52,9 @@ impl Worker for ProcessManagerWorker {
         let self_id = &self.interest.actor_id;
         let ce: ConcordanceEvent = message.inner.clone().into();
         if !self.interest.is_interested_in_event(&ce) {
-            warn!("Process Manager is not interested in event '{}'. PM interest is explicitly configured in JSON linkdef. Is the configuration correct?", ce.event_type);
+            // at the moment we can't declare per-event subscriptions in NATS, so PM consumers listen to
+            // all events, so we should silently ack them
+            message.ack().await.map_err(|e| WorkError::NatsError(e))?;
             return Ok(());
         }
 
@@ -60,18 +62,24 @@ impl Worker for ProcessManagerWorker {
             serde_json::from_slice(&ce.payload).unwrap_or_default();
         let key = self.interest.extract_key_value_from_payload(&evt_payload);
 
-        let state = match &self.interest.interest {
-            ActorInterest::ProcessManager(pm_life)
-                if pm_life.event_starts_new_process(&ce.event_type) =>
-            {
-                // Never deliver state to a process manager on its lifetime-start event
-                None
+        let state = if !key.is_empty() {
+            match &self.interest.interest {
+                ActorInterest::ProcessManager(pm_life)
+                    if pm_life.event_starts_new_process(&ce.event_type) =>
+                {
+                    // Never deliver state to a process manager on its lifetime-start event
+                    None
+                }
+                _ => self
+                    .state
+                    .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
+                    .await
+                    .map_err(|e| {
+                        WorkError::NatsError(format!("Failed to load state: {e}").into())
+                    })?,
             }
-            _ => self
-                .state
-                .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
-                .await
-                .map_err(|e| WorkError::NatsError(format!("Failed to load state: {e}").into()))?,
+        } else {
+            None
         };
 
         if let Some(ref vec) = state {
@@ -119,10 +127,10 @@ impl ProcessManagerWorker {
         for cmd in &ack.commands {
             let rawcmd = RawCommand {
                 command_type: cmd.command_type.to_string(),
-                key: cmd.key.to_string(),
+                key: cmd.aggregate_key.to_string(),
                 data: serde_json::from_slice(&cmd.json_payload).unwrap_or_default(),
             };
-            if let Err(e) = publish_raw_command(&self.nc, rawcmd).await {
+            if let Err(e) = publish_raw_command(&self.nc, rawcmd, &cmd.aggregate_stream).await {
                 msg.nack().await;
                 return Err(WorkError::NatsError(e.into()));
             }

@@ -113,9 +113,6 @@ impl ConcordanceProvider {
         true
     }
 
-    /// This is currently a generic event worker as a placeholder.
-    /// TODO: this will be a process manager specific worker that manages
-    /// PM state and lifetime    
     async fn add_process_manager_consumer(&self, decl: &InterestDeclaration) -> bool {
         if let Err(e) = self
             .consumer_manager

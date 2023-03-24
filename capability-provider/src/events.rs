@@ -10,8 +10,7 @@ use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
 
 pub(crate) const EVENT_TOPIC_PREFIX: &str = "cc.events";
 pub(crate) const COMMAND_TOPIC_PREFIX: &str = "cc.commands";
-// pub(crate) const EXT_CONCORDANCE_AGGREGATE_KEY: &str = "x-concordance-agg-key";
-// pub(crate) const EXT_CONCORDANCE_PM_KEY: &str = "x-concordance-pm-key";
+
 pub(crate) const EXT_CONCORDANCE_STREAM: &str = "x-concordance-stream";
 
 // NOTE: making the publication functions below use request versus publish forces
@@ -23,7 +22,7 @@ pub(crate) async fn publish_es_event(
     event: ConcordanceEvent,
 ) -> Result<()> {
     let evt_type = event.event_type.to_snake();
-    let topic = format!("{EVENT_TOPIC_PREFIX}.{evt_type}");
+    let topic = format!("{EVENT_TOPIC_PREFIX}.{evt_type}"); // e.g. cc.events.amount_withdrawn
 
     let cloud_event: CloudEvent = event.into();
     let Ok(raw) = serde_json::to_vec(&cloud_event) else {
@@ -39,9 +38,12 @@ pub(crate) async fn publish_es_event(
 }
 
 #[instrument(level = "debug", skip(nc))]
-pub(crate) async fn publish_raw_command(nc: &async_nats::Client, cmd: RawCommand) -> Result<()> {
-    let cmd_type = cmd.command_type.to_snake();
-    let topic = format!("{COMMAND_TOPIC_PREFIX}.{cmd_type}");
+pub(crate) async fn publish_raw_command(
+    nc: &async_nats::Client,
+    cmd: RawCommand,
+    stream: &str,
+) -> Result<()> {
+    let topic = format!("{COMMAND_TOPIC_PREFIX}.{stream}"); // e.g. cc.commands.bankaccount
 
     let Ok(raw) = serde_json::to_vec(&cmd) else {
         error!("Failed to serialize an internal raw command. Something is very wrong.");
@@ -56,8 +58,7 @@ pub(crate) async fn publish_raw_command(nc: &async_nats::Client, cmd: RawCommand
 }
 
 /// Converts an internal Concordance Event (defined by interface IDL) into a cloud event. This strips the intermediary
-/// envelope from the concordance event type to create a nice and tidy cloud event with JSON payload. It takes the
-/// previously enveloped values of key and stream and places them on the cloud event by way of extensions
+/// envelope from the concordance event type to create a nice and tidy cloud event with JSON payload.
 impl Into<CloudEvent> for ConcordanceEvent {
     fn into(self) -> CloudEvent {
         let mut evt = EventBuilderV10::new()
@@ -65,8 +66,6 @@ impl Into<CloudEvent> for ConcordanceEvent {
             .ty(self.event_type.to_string())
             .source("concordance")
             .time(Utc::now())
-            // .extension(EXT_CONCORDANCE_AGGREGATE_KEY, self.aggregate_key)
-            // .extension(EXT_CONCORDANCE_PM_KEY, self.pm_key)
             .extension(EXT_CONCORDANCE_STREAM, self.stream)
             .build()
             .unwrap(); // if we can't serialize this envelope, something's bad enough worth panicking for
@@ -82,8 +81,7 @@ impl Into<CloudEvent> for ConcordanceEvent {
 }
 
 /// Creates an internal Concordance Event (defined by interface IDL) from a cloud event. This will reconstitute the
-/// intermediary envelope of the event and put the cloud event's JSON `data()` field into the `payload` field. The
-/// key and stream values of the concordance event will be pulled from the appropriate extension fields on the cloud event
+/// intermediary envelope of the event and put the cloud event's JSON `data()` field into the `payload` field.
 impl Into<ConcordanceEvent> for CloudEvent {
     fn into(self) -> ConcordanceEvent {
         let payload = match self.data() {
@@ -94,16 +92,6 @@ impl Into<ConcordanceEvent> for CloudEvent {
         };
         ConcordanceEvent {
             event_type: self.ty().to_owned(),
-            // aggregate_key: self
-            //     .extension(EXT_CONCORDANCE_AGGREGATE_KEY)
-            //     .cloned()
-            //     .unwrap_or("".to_string().into())
-            //     .to_string(),
-            // pm_key: self
-            //     .extension(EXT_CONCORDANCE_PM_KEY)
-            //     .cloned()
-            //     .unwrap_or("".to_string().into())
-            //     .to_string(),
             stream: self
                 .extension(EXT_CONCORDANCE_STREAM)
                 .cloned()
@@ -147,16 +135,11 @@ mod test {
 
         let internal_event = ConcordanceEvent {
             event_type: "account_created".to_string(),
-            // aggregate_key: "ABC123".to_string(),
-            // pm_key: "".to_string(),
             payload: serde_json::to_vec(&ace).unwrap(),
             stream: "bankaccount".to_string(),
         };
         let ce: CloudEvent = internal_event.into();
-        // assert_eq!(
-        //     ce.extension(EXT_CONCORDANCE_AGGREGATE_KEY),
-        //     Some(&ExtensionValue::String("ABC123".to_string()))
-        // );
+
         assert_eq!(
             ce.extension(EXT_CONCORDANCE_STREAM),
             Some(&ExtensionValue::String("bankaccount".to_string()))

@@ -50,22 +50,32 @@ impl Worker for AggregateEventWorker {
         let self_id = &self.interest.actor_id;
         let ce: ConcordanceEvent = message.inner.clone().into();
         if !self.interest.is_interested_in_event(&ce) {
-            warn!("Aggregate is not interested in event '{}' on stream '{}'. Event could be on the wrong stream or the aggregate consumer could be misconfigured.", ce.event_type, ce.stream);
+            trace!(
+                "Aggregate is not interested in event '{}' on stream '{}'. Acking and moving on.",
+                ce.event_type,
+                ce.stream
+            );
             message.ack().await.map_err(|e| WorkError::NatsError(e))?;
             return Ok(());
         }
+        println!("**> KEY FIELD {}", self.interest.key_field);
         let evt_payload: serde_json::Value =
             serde_json::from_slice(&ce.payload).unwrap_or_default();
+        println!("**> {evt_payload:?}");
         let key = self.interest.extract_key_value_from_payload(&evt_payload);
-        let state = self
-            .state
-            .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
-            .await
-            .map_err(|e| {
-                WorkError::NatsError(
-                    format!("Failed to load state for aggregate {self_id} : {e}").into(),
-                )
-            })?;
+        println!("**> '{key}'");
+        let state = if !key.is_empty() {
+            self.state
+                .fetch_state(&self.interest.role, &self.interest.entity_name, &key)
+                .await
+                .map_err(|e| {
+                    WorkError::NatsError(
+                        format!("Failed to load state for aggregate {self_id} : {e}").into(),
+                    )
+                })?
+        } else {
+            None
+        };
 
         let ctx = wasmbus_rpc::provider::prelude::Context::default();
         let target = AggregateServiceSender::for_actor(&self.interest.link_definition);
@@ -135,6 +145,10 @@ impl AggregateEventWorker {
         key: &str,
         data: Vec<u8>,
     ) -> WorkResult<()> {
+        if key.is_empty() {
+            return Ok(());
+        }
+
         let self_id = &self.interest.actor_id;
         match self
             .state
@@ -161,6 +175,9 @@ impl AggregateEventWorker {
         msg: &mut AckableMessage<CloudEvent>,
         key: &str,
     ) -> WorkResult<()> {
+        if key.is_empty() {
+            return Ok(());
+        }
         let self_id = &self.interest.actor_id;
         match self
             .state

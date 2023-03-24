@@ -5,6 +5,7 @@ use wasmbus_rpc::actor::prelude::*;
 use bankaccount_model::commands::*;
 use bankaccount_model::deserialize;
 use bankaccount_model::events::*;
+use wasmcloud_interface_logging::debug;
 use wasmcloud_interface_logging::{error, info};
 
 #[allow(dead_code)]
@@ -79,27 +80,15 @@ impl AggregateService for BankAccountAggregate {
             WIRE_FUNDS_RESERVED_EVENT_TYPE => apply_funds_reserved(
                 state,
                 deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
-            ),
-            WIRE_TRANSFER_REQUESTED_EVENT_TYPE => apply_wire_transfer_requested(
-                state,
-                deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
-            ),
+            ),                    
             e => {
-                error!("Unsupported event type: {e}. Interest configuration for this aggregate is probably incorect.");
-                StateAck::error(&format!("Unsupported event type {e}"), state.clone())
+                debug!("Non-state-mutating event received '{e}'. Acking and moving on.");
+                StateAck::ok(state)
             }
         })
     }
 }
 
-/// Currently a no-op. We consume this event because it's on the stream, but it doesn't affect internal
-/// state. This event is used by the process manager
-fn apply_wire_transfer_requested(
-    state: Option<AggregateState>,
-    _event: WireTransferRequested,
-) -> StateAck {
-    StateAck::ok(state)
-}
 
 // This function doesn't use/care about pre-existing state. This creates it new
 fn apply_account_created(event: AccountCreatedEvent) -> StateAck {

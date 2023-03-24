@@ -1,7 +1,7 @@
 {
   "specversion": "1.0",
-  "id": "9c0562bb-6657-4918-ad21-bec63f38bc10",
-  "type": "interbank_transfer_completed",
+  "id": "9a0562bb-6657-4918-ad21-bec63f38bc11",
+  "type": "interbank_transfer_failed",
   "source": "concordance",
   "datacontenttype": "application/json",
   "time": "2023-03-23T18:07:40.210505Z",
@@ -9,8 +9,5 @@
     "wire_transfer_id": "9c0562bb-6657-4918-ad21-bec63f38bc10",
     "note": "Transfer completed",
     "gateway_client_id": "GWDEMO1"
-  },
-  "x-concordance-stream": "bankaccount",
-  "x-concordance-agg-key": "834597DRML130",
-  "x-concordance-pm-key": "9c0562bb-6657-4918-ad21-bec63f38bc10"
+  }
 }
