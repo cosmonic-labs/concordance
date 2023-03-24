@@ -79,6 +79,8 @@ impl Worker for ProcessManagerWorker {
                     })?,
             }
         } else {
+            warn!("Key field {} not found on incoming event. This indicates either bad data or potentially side-effectful behavior",
+            &self.interest.key_field);
             None
         };
 
