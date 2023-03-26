@@ -1,6 +1,6 @@
 
 [[models]]
-path = "../interface"
+path = "../../../interface/"
 files = [
     "eventsourcing.smithy",
     "aggregate.smithy",

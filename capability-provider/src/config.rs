@@ -17,6 +17,7 @@ use wasmbus_rpc::{core::LinkDefinition, wascap::prelude::KeyPair};
 const ROLE_KEY: &str = "role";
 const INTEREST_KEY: &str = "interest";
 const ENTITY_NAME_KEY: &str = "name";
+const KEY_FIELD_KEY: &str = "key";
 
 const REQUIRED_KEYS: &[&str] = &["role", "interest", "name"];
 
@@ -89,11 +90,22 @@ impl BaseConfiguration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InterestDeclaration {
     pub actor_id: String,
+    pub key_field: String,
     pub entity_name: String,
     pub role: ActorRole,
     pub interest: ActorInterest,
     pub interest_constraint: InterestConstraint,
     pub link_definition: LinkDefinition,
+}
+
+impl InterestDeclaration {
+    pub fn extract_key_value_from_payload(&self, payload: &serde_json::Value) -> String {
+        payload
+            .get(&self.key_field)
+            .cloned()
+            .map(|s| s.as_str().unwrap_or_default().trim().to_string())
+            .unwrap_or_default()
+    }
 }
 
 impl Hash for InterestDeclaration {
@@ -127,12 +139,14 @@ impl InterestDeclaration {
     pub fn aggregate_for_commands(
         actor_id: &str,
         entity_name: &str,
+        key: &str,
         ld: LinkDefinition,
     ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role: ActorRole::Aggregate,
+            key_field: key.to_string(),
             interest_constraint: InterestConstraint::Commands,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
             link_definition: ld,
@@ -143,12 +157,14 @@ impl InterestDeclaration {
     pub fn aggregate_for_events(
         actor_id: &str,
         entity_name: &str,
+        key: &str,
         ld: LinkDefinition,
     ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role: ActorRole::Aggregate,
+            key_field: key.to_string(),
             interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::AggregateStream(entity_name.to_string()),
             link_definition: ld,
@@ -159,12 +175,14 @@ impl InterestDeclaration {
     pub fn process_manager_for_events(
         actor_id: &str,
         entity_name: &str,
+        key: &str,
         lifetime: ProcessManagerLifetime,
         ld: LinkDefinition,
     ) -> InterestDeclaration {
         InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
+            key_field: key.to_string(),
             role: ActorRole::ProcessManager,
             interest: ActorInterest::ProcessManager(lifetime),
             interest_constraint: InterestConstraint::Events,
@@ -177,6 +195,7 @@ impl InterestDeclaration {
         actor_id: &str,
         entity_name: &str,
         role: ActorRole,
+        key: &str,
         interest: ActorInterest,
         ld: LinkDefinition,
     ) -> InterestDeclaration {
@@ -184,6 +203,7 @@ impl InterestDeclaration {
             actor_id: actor_id.to_string(),
             entity_name: entity_name.to_string(),
             role,
+            key_field: key.to_string(),
             interest_constraint: InterestConstraint::Events,
             interest,
             link_definition: ld,
@@ -205,11 +225,13 @@ impl InterestDeclaration {
                 interested_parties.push(Self::aggregate_for_commands(
                     &source.actor_id,
                     &raw.name,
+                    &raw.key_field,
                     source.clone(),
                 ));
                 interested_parties.push(Self::aggregate_for_events(
                     &source.actor_id,
                     &raw.name,
+                    &raw.key_field,
                     source.clone(),
                 ));
             } else {
@@ -217,6 +239,7 @@ impl InterestDeclaration {
                     &source.actor_id,
                     &raw.name,
                     role.clone(),
+                    &raw.key_field,
                     ActorInterest::from_role_interest(&raw.interest, &role)
                         .map_err(|e| e.to_string())?,
                     source.clone(),
@@ -246,7 +269,7 @@ impl InterestDeclaration {
                 }
             }
             ActorRole::ProcessManager => {
-                format!("PROCMAN_{name}")
+                format!("PM_{name}")
             }
             ActorRole::Notifier => {
                 format!("NOTIFIER_{name}")
@@ -311,6 +334,7 @@ struct LinkConfigurationRaw {
     pub role: String,
     pub interest: String,
     pub name: String,
+    pub key_field: String,
 }
 
 impl LinkConfigurationRaw {
@@ -342,6 +366,11 @@ impl LinkConfigurationRaw {
                         .to_string(),
                     name: values
                         .get(ENTITY_NAME_KEY)
+                        .map(|s| s.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    key_field: values
+                        .get(KEY_FIELD_KEY)
                         .map(|s| s.as_str())
                         .unwrap_or_default()
                         .to_string(),
@@ -406,15 +435,19 @@ impl From<String> for ActorRole {
 /// time
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize, Hash, Eq)]
 pub struct ProcessManagerLifetime {
-    start: String,
-    advance: Vec<String>,
-    stop: Vec<String>,
+    pub start: String,
+    pub advance: Vec<String>,
+    pub stop: Vec<String>,
 }
 
 impl ProcessManagerLifetime {
-    fn is_interested_in_event(&self, event_type: &str) -> bool {
+    pub(crate) fn is_interested_in_event(&self, event_type: &str) -> bool {
         let target = event_type.to_snake();
         self.start == target || self.stop.contains(&target) || self.advance.contains(&target)
+    }
+
+    pub(crate) fn event_starts_new_process(&self, event_type: &str) -> bool {
+        self.start == event_type.to_snake()
     }
 }
 
@@ -563,11 +596,11 @@ mod test {
         let agg = InterestDeclaration::aggregate_for_events(
             "MXBOB",
             "gameboard",
+            "game_id",
             LinkDefinition::default(),
         );
         let ev = ConcordanceEvent {
             event_type: "player_moved".to_string(),
-            key: "PLAYERONE".to_string(),
             payload: vec![],
             stream: "gameboard".to_string(),
         };
@@ -576,7 +609,6 @@ mod test {
         // Aggregate sad
         let ev = ConcordanceEvent {
             event_type: "player_died".to_string(),
-            key: "PLAYERONE".to_string(),
             payload: vec![],
             stream: "match".to_string(),
         };
@@ -591,18 +623,17 @@ mod test {
         let agg = InterestDeclaration::process_manager_for_events(
             "MXBOB",
             "gameboard",
+            "game_id",
             lifetime,
             LinkDefinition::default(),
         );
         let event_wanted = ConcordanceEvent {
             event_type: "game_started".to_string(),
-            key: "GAME-001".to_string(),
             stream: "gameboard".to_string(),
             payload: vec![],
         };
         let event_unwanted = ConcordanceEvent {
             event_type: "player_profile_updated".to_string(),
-            key: "GAME-001".to_string(),
             stream: "gameboard".to_string(),
             payload: vec![],
         };

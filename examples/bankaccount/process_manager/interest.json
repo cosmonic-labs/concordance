@@ -1,0 +1,11 @@
+{
+    "start": "wire_transfer_requested",
+    "advance": [
+        "wire_funds_reserved",
+        "interbank_transfer_initiated"
+    ],
+    "stop": [
+        "interbank_transfer_completed",
+        "interbank_transfer_failed"
+    ]
+}

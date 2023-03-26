@@ -1,5 +1,5 @@
-use crate::eventsourcing::Event as ConcordanceEvent;
 use crate::Result;
+use crate::{consumers::RawCommand, eventsourcing::Event as ConcordanceEvent};
 use case::CaseExt;
 use chrono::Utc; // only using chrono because cloudevents SDK needs it
 use cloudevents::AttributesReader;
@@ -8,17 +8,21 @@ use wasmbus_rpc::error::RpcError;
 
 use cloudevents::{Event as CloudEvent, EventBuilder, EventBuilderV10};
 
-const EVENT_TOPIC_PREFIX: &str = "cc.events";
-const EXT_CONCORDANCE_KEY: &str = "x-concordance-key";
-const EXT_CONCORDANCE_STREAM: &str = "x-concordance-stream";
+pub(crate) const EVENT_TOPIC_PREFIX: &str = "cc.events";
+pub(crate) const COMMAND_TOPIC_PREFIX: &str = "cc.commands";
 
-#[instrument(level = "info", skip(nc))]
+pub(crate) const EXT_CONCORDANCE_STREAM: &str = "x-concordance-stream";
+
+// NOTE: making the publication functions below use request versus publish forces
+// the stream to acknowledge the new entry. Un-acked messages will result in errors
+
+#[instrument(level = "debug", skip(nc))]
 pub(crate) async fn publish_es_event(
     nc: &async_nats::Client,
     event: ConcordanceEvent,
 ) -> Result<()> {
     let evt_type = event.event_type.to_snake();
-    let topic = format!("{EVENT_TOPIC_PREFIX}.{evt_type}");
+    let topic = format!("{EVENT_TOPIC_PREFIX}.{evt_type}"); // e.g. cc.events.amount_withdrawn
 
     let cloud_event: CloudEvent = event.into();
     let Ok(raw) = serde_json::to_vec(&cloud_event) else {
@@ -26,7 +30,27 @@ pub(crate) async fn publish_es_event(
         return Err(RpcError::Ser("Fatal serialization failure - could not serialize a cloud event".to_string()));
     };
 
-    nc.publish(topic, raw.into())
+    nc.request(topic, raw.into())
+        .await
+        .map_err(|e| RpcError::Nats(e.to_string()))?;
+
+    Ok(())
+}
+
+#[instrument(level = "debug", skip(nc))]
+pub(crate) async fn publish_raw_command(
+    nc: &async_nats::Client,
+    cmd: RawCommand,
+    stream: &str,
+) -> Result<()> {
+    let topic = format!("{COMMAND_TOPIC_PREFIX}.{stream}"); // e.g. cc.commands.bankaccount
+
+    let Ok(raw) = serde_json::to_vec(&cmd) else {
+        error!("Failed to serialize an internal raw command. Something is very wrong.");
+        return Err(RpcError::Ser("Fatal serialization failure - could not serialize a raw command".to_string()));
+    };
+
+    nc.request(topic, raw.into())
         .await
         .map_err(|e| RpcError::Nats(e.to_string()))?;
 
@@ -34,8 +58,7 @@ pub(crate) async fn publish_es_event(
 }
 
 /// Converts an internal Concordance Event (defined by interface IDL) into a cloud event. This strips the intermediary
-/// envelope from the concordance event type to create a nice and tidy cloud event with JSON payload. It takes the
-/// previously enveloped values of key and stream and places them on the cloud event by way of extensions
+/// envelope from the concordance event type to create a nice and tidy cloud event with JSON payload.
 impl Into<CloudEvent> for ConcordanceEvent {
     fn into(self) -> CloudEvent {
         let mut evt = EventBuilderV10::new()
@@ -43,7 +66,6 @@ impl Into<CloudEvent> for ConcordanceEvent {
             .ty(self.event_type.to_string())
             .source("concordance")
             .time(Utc::now())
-            .extension(EXT_CONCORDANCE_KEY, self.key)
             .extension(EXT_CONCORDANCE_STREAM, self.stream)
             .build()
             .unwrap(); // if we can't serialize this envelope, something's bad enough worth panicking for
@@ -59,8 +81,7 @@ impl Into<CloudEvent> for ConcordanceEvent {
 }
 
 /// Creates an internal Concordance Event (defined by interface IDL) from a cloud event. This will reconstitute the
-/// intermediary envelope of the event and put the cloud event's JSON `data()` field into the `payload` field. The
-/// key and stream values of the concordance event will be pulled from the appropriate extension fields on the cloud event
+/// intermediary envelope of the event and put the cloud event's JSON `data()` field into the `payload` field.
 impl Into<ConcordanceEvent> for CloudEvent {
     fn into(self) -> ConcordanceEvent {
         let payload = match self.data() {
@@ -71,11 +92,6 @@ impl Into<ConcordanceEvent> for CloudEvent {
         };
         ConcordanceEvent {
             event_type: self.ty().to_owned(),
-            key: self
-                .extension(EXT_CONCORDANCE_KEY)
-                .cloned()
-                .unwrap_or("".to_string().into())
-                .to_string(),
             stream: self
                 .extension(EXT_CONCORDANCE_STREAM)
                 .cloned()
@@ -92,10 +108,7 @@ mod test {
     use serde::{Deserialize, Serialize};
 
     use super::CloudEvent;
-    use crate::{
-        events::{EXT_CONCORDANCE_KEY, EXT_CONCORDANCE_STREAM},
-        eventsourcing::Event as ConcordanceEvent,
-    };
+    use crate::{events::EXT_CONCORDANCE_STREAM, eventsourcing::Event as ConcordanceEvent};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct CreateAccountCommand {
@@ -122,15 +135,11 @@ mod test {
 
         let internal_event = ConcordanceEvent {
             event_type: "account_created".to_string(),
-            key: "ABC123".to_string(),
             payload: serde_json::to_vec(&ace).unwrap(),
             stream: "bankaccount".to_string(),
         };
         let ce: CloudEvent = internal_event.into();
-        assert_eq!(
-            ce.extension(EXT_CONCORDANCE_KEY),
-            Some(&ExtensionValue::String("ABC123".to_string()))
-        );
+
         assert_eq!(
             ce.extension(EXT_CONCORDANCE_STREAM),
             Some(&ExtensionValue::String("bankaccount".to_string()))

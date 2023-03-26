@@ -27,8 +27,6 @@ pub struct Event {
     #[serde(rename = "eventType")]
     #[serde(default)]
     pub event_type: String,
-    #[serde(default)]
-    pub key: String,
     #[serde(with = "serde_bytes")]
     #[serde(default)]
     pub payload: Vec<u8>,
@@ -46,11 +44,9 @@ pub fn encode_event<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(4)?;
+    e.map(3)?;
     e.str("eventType")?;
     e.str(&val.event_type)?;
-    e.str("key")?;
-    e.str(&val.key)?;
     e.str("payload")?;
     e.bytes(&val.payload)?;
     e.str("stream")?;
@@ -63,7 +59,6 @@ where
 pub fn decode_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Event, RpcError> {
     let __result = {
         let mut event_type: Option<String> = None;
-        let mut key: Option<String> = None;
         let mut payload: Option<Vec<u8>> = None;
         let mut stream: Option<String> = None;
 
@@ -81,9 +76,8 @@ pub fn decode_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Event, Rpc
             for __i in 0..(len as usize) {
                 match __i {
                     0 => event_type = Some(d.str()?.to_string()),
-                    1 => key = Some(d.str()?.to_string()),
-                    2 => payload = Some(d.bytes()?.to_vec()),
-                    3 => stream = Some(d.str()?.to_string()),
+                    1 => payload = Some(d.bytes()?.to_vec()),
+                    2 => stream = Some(d.str()?.to_string()),
                     _ => d.skip()?,
                 }
             }
@@ -92,7 +86,6 @@ pub fn decode_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Event, Rpc
             for __i in 0..(len as usize) {
                 match d.str()? {
                     "eventType" => event_type = Some(d.str()?.to_string()),
-                    "key" => key = Some(d.str()?.to_string()),
                     "payload" => payload = Some(d.bytes()?.to_vec()),
                     "stream" => stream = Some(d.str()?.to_string()),
                     _ => d.skip()?,
@@ -108,17 +101,11 @@ pub fn decode_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Event, Rpc
                 ));
             },
 
-            key: if let Some(__x) = key {
-                __x
-            } else {
-                return Err(RpcError::Deser("missing field Event.key (#1)".to_string()));
-            },
-
             payload: if let Some(__x) = payload {
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field Event.payload (#2)".to_string(),
+                    "missing field Event.payload (#1)".to_string(),
                 ));
             },
 
@@ -126,7 +113,7 @@ pub fn decode_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Event, Rpc
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field Event.stream (#3)".to_string(),
+                    "missing field Event.stream (#2)".to_string(),
                 ));
             },
         }

@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use wasmbus_rpc::actor::prelude::*;
 
 use bankaccount_model::commands::*;
+use bankaccount_model::deserialize;
 use bankaccount_model::events::*;
-use bankaccount_model::{deserialize, serialize};
+use wasmcloud_interface_logging::debug;
 use wasmcloud_interface_logging::{error, info};
 
 #[allow(dead_code)]
@@ -19,16 +20,34 @@ struct BankAccountAggregate {}
 #[async_trait]
 impl AggregateService for BankAccountAggregate {
     async fn handle_command(&self, _ctx: &Context, arg: &StatefulCommand) -> RpcResult<EventList> {
-        info!("Handling command: {}", arg.command_type.as_str());
+        info!("Aggregate handling command: {}", arg.command_type.as_str());
+
+        let state: Option<AggregateState> = arg
+            .state
+            .clone()
+            .map(|bytes| deserialize(&bytes).unwrap_or_default());
+
         Ok(match arg.command_type.as_str() {
             CREATE_ACCOUNT_TYPE => create_account(
+                deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            RESERVE_FUNDS_TYPE => reserve_funds(
+                state,
                 deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
             ),
             DEPOSIT_FUNDS_TYPE => deposit_funds(
                 deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
             ),
+            WIRE_TRANSFER_REQUEST_TYPE => request_wire_transfer(
+                state,
+                deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            INITIATE_TRANSFER_TYPE => initiate_interbank_transfer(
+                state,
+                deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
             WITHDRAW_FUNDS_TYPE => withdraw_funds(
-                arg.state.clone(),
+                state,
                 deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
             ),
             e => {
@@ -40,106 +59,229 @@ impl AggregateService for BankAccountAggregate {
 
     async fn apply_event(&self, _ctx: &Context, arg: &EventWithState) -> RpcResult<StateAck> {
         info!("Handling event {}", arg.event.event_type);
-        let old_state: AggregateState = if let Some(s) = &arg.state {
-            deserialize(&s).unwrap()
-        } else {
-            AggregateState::default()
-        };
-        let new_state = match arg.event.event_type.as_str() {
-            ACCOUNT_CREATED_TYPE => apply_account_created(deserialize(&arg.event.payload).unwrap()),
-            FUNDS_DEPOSITED_EVENT_TYPE => apply_funds_deposited(deserialize(&arg.event.payload).unwrap(), old_state),
-            FUNDS_WITHDRAWN_EVENT_TYPE => apply_funds_withdrawn(deserialize(&arg.event.payload).unwrap(), old_state),
-            _ => old_state,
-        };
-        Ok(StateAck {
-            error: None,
-            state: Some(serialize(&new_state).unwrap()),
-            succeeded: true,
+
+        let state: Option<AggregateState> = arg
+            .state
+            .clone()
+            .map(|bytes| deserialize(&bytes).unwrap_or_default());
+
+        Ok(match arg.event.event_type.as_str() {
+            ACCOUNT_CREATED_TYPE => apply_account_created(
+                deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            FUNDS_DEPOSITED_EVENT_TYPE => apply_funds_deposited(
+                state,
+                deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            FUNDS_WITHDRAWN_EVENT_TYPE => apply_funds_withdrawn(
+                state,
+                deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            WIRE_FUNDS_RESERVED_EVENT_TYPE => apply_funds_reserved(
+                state,
+                deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),                    
+            e => {
+                debug!("Non-state-mutating event received '{e}'. Acking and moving on.");
+                StateAck::ok(state)
+            }
         })
     }
 }
 
+
 // This function doesn't use/care about pre-existing state. This creates it new
-fn apply_account_created(event: AccountCreatedEvent) -> AggregateState {
-    AggregateState {
+fn apply_account_created(event: AccountCreatedEvent) -> StateAck {
+    let state = AggregateState {
         balance: event.initial_balance,
         min_balance: event.min_balance,
         account_number: event.account_number,
         customer_id: event.customer_id,
-    }
+        reserved_amount: 0,
+    };
+    StateAck::ok(Some(state))
 }
 
-fn apply_funds_deposited(event: FundsDepositedEvent, state: AggregateState) -> AggregateState {
-    AggregateState { 
-        balance: state.balance + event.amount,
-        .. state
-    }
+fn apply_funds_deposited(state: Option<AggregateState>, event: FundsDepositedEvent) -> StateAck {
+    let Some(old_state) = state else {
+        error!(
+            "Rejecting funds deposited event. Account {} does not exist.",
+            event.account_number
+        );
+        return StateAck::error("Account does not exist", None);
+    };
+    let state = AggregateState {
+        balance: old_state.balance + event.amount,
+        ..old_state
+    };
+    StateAck::ok(Some(state))
 }
 
-fn apply_funds_withdrawn(event: FundsWithdrawnEvent, state: AggregateState) -> AggregateState {
-    AggregateState { 
-        balance: state.balance - event.amount,
-        .. state
-    }
+fn apply_funds_withdrawn(state: Option<AggregateState>, event: FundsWithdrawnEvent) -> StateAck {
+    let Some(old_state) = state else {
+        error!(
+            "Rejecting funds withdrawn event. Account {} does not exist.",
+            event.account_number
+        );
+        return StateAck::error("Account does not exist", None);        
+    };
+
+    let state = AggregateState {
+        balance: old_state.balance - event.amount,
+        ..old_state
+    };
+    StateAck::ok(Some(state))
 }
+
+fn apply_funds_reserved(state: Option<AggregateState>, event: WireFundsReserved) -> StateAck {
+    let Some(old_state) = state else {
+        error!(
+            "Rejecting funds reserved event. Account {} does not exist.",
+            event.account_number
+        );
+        return StateAck::error("Account does not exist", None);
+    };
+
+    let state = AggregateState {
+        reserved_amount: old_state.reserved_amount + event.amount,
+        ..old_state
+    };
+    StateAck::ok(Some(state))
+}
+
+/* --- Commands ---  */
 
 fn create_account(cmd: CreateAccountCommand) -> EventList {
-    vec![Event {
-        event_type: ACCOUNT_CREATED_TYPE.to_string(),
-        key: cmd.account_number.to_string(),
-        payload: serialize(&AccountCreatedEvent {
+    vec![Event::new(
+        ACCOUNT_CREATED_TYPE,
+        STREAM,
+        &AccountCreatedEvent {
             initial_balance: cmd.initial_balance,
-            account_number: cmd.account_number,
+            account_number: cmd.account_number.to_string(),
             min_balance: cmd.min_balance,
             customer_id: cmd.customer_id,
-        })
-        .unwrap(),
-        stream: STREAM.to_string(),
-    }]
+        },
+    )]
 }
 
-fn withdraw_funds(state: Option<Vec<u8>>, cmd: WithdrawFundsCommand) -> EventList {
-    // TODO: enforce minimum balance
-    if let Some(s) = state {
-        let Ok(old_state) = deserialize::<AggregateState>(&s) else {
-            error!("Rejected command to withdraw funds from account {}. Could not deserialize old state.", cmd.account_number);
-            return vec![];
-        };
-        let adj_withdraw = old_state.balance.min(cmd.amount);
-        vec![Event {
-            event_type: FUNDS_WITHDRAWN_EVENT_TYPE.to_string(),
-            key: cmd.account_number.to_string(),
-            payload: serialize(&FundsWithdrawnEvent {
-                account_number: cmd.account_number,
-                amount: adj_withdraw,
-                customer_id: cmd.customer_id,
-                note: cmd.note,
-            })
-            .unwrap(),
-            stream: STREAM.to_string(),
-        }]
+fn request_wire_transfer(state: Option<AggregateState>, cmd: RequestWireTransfer) -> EventList {
+    let Some(old_state) = state else {
+        error!(
+            "Rejected incoming command to request a wire transfer. Account {} does not exist.",
+            cmd.account_number
+        );
+        return vec![];
+    };
+
+    vec![Event::new(
+        WIRE_TRANSFER_REQUESTED_EVENT_TYPE,
+        STREAM,
+        WireTransferRequested {
+            account_number: cmd.account_number.to_string(),
+            wire_transfer_id: cmd.wire_transfer_id,
+            amount: cmd.amount,
+            customer_id: old_state.customer_id,
+            target_account_number: cmd.target_account_number,
+            target_routing_number: cmd.target_routing_number,
+        },
+    )]
+}
+
+fn initiate_interbank_transfer(
+    state: Option<AggregateState>,
+    cmd: InitiateInterbankTransfer,
+) -> EventList {
+    if state.is_none() {
+        error!(
+            "Rejected incoming command to initiate bank transfer. Account {} does not exist.",
+            cmd.account_number
+        );
+        return vec![];
+    };
+    // NOTE: validation would occur here in a real app
+    vec![Event::new(
+        INTERBANK_TRANSFER_INITIATED_EVENT_TYPE,
+        STREAM,
+        InterbankTransferInitiated {
+            account_number: cmd.account_number.to_string(),
+            wire_transfer_id: cmd.wire_transfer_id,
+            target_account_number: cmd.target_account_number,
+            target_routing_number: cmd.target_routing_number,
+        },
+    )]
+}
+
+fn reserve_funds(state: Option<AggregateState>, cmd: ReserveFunds) -> EventList {
+    let Some(old_state) = state else {
+        error!(
+            "Rejected incoming command to reserve funds. Account {} does not exist.",
+            cmd.account_number
+        );
+        return vec![];
+    };
+    let avail_balance = old_state.balance - old_state.reserved_amount;
+    if cmd.amount > avail_balance {
+        // In a real-world system this might emit a failure event rather than just silently absorb the command
+        error!(
+            "Rejecting command to reserve funds, account {} does not have sufficient funds.",
+            &cmd.account_number
+        );
+        vec![]
     } else {
+        vec![Event::new(
+            WIRE_FUNDS_RESERVED_EVENT_TYPE,
+            STREAM,
+            WireFundsReserved {
+                account_number: cmd.account_number.to_string(),
+                wire_transfer_id: cmd.wire_transfer_id,
+                customer_id: old_state.customer_id.to_string(),
+                amount: cmd.amount,
+            },
+        )]
+    }
+}
+
+fn withdraw_funds(state: Option<AggregateState>, cmd: WithdrawFundsCommand) -> EventList {
+    let Some(old_state) = state else {
         error!(
             "Rejected incoming command to withdraw funds. Account {} does not exist.",
             cmd.account_number
         );
-        vec![]
+        return vec![];
+    };
+
+    let avail_balance = old_state.balance - old_state.reserved_amount;
+    if avail_balance < cmd.amount {
+        error!(
+            "Rejected incoming command to withdraw funds. Insufficient funds in account {}",
+            cmd.account_number
+        );
+        return vec![];
+    } else {
+        vec![Event::new(
+            FUNDS_WITHDRAWN_EVENT_TYPE,
+            STREAM,
+            FundsWithdrawnEvent {
+                account_number: cmd.account_number.to_string(),
+                amount: cmd.amount,
+                customer_id: old_state.customer_id,
+                note: cmd.note,
+            },
+        )]
     }
 }
 
 fn deposit_funds(cmd: WithdrawFundsCommand) -> EventList {
-    vec![Event {
-        event_type: FUNDS_DEPOSITED_EVENT_TYPE.to_string(),
-        key: cmd.account_number.to_string(),
-        payload: serialize(&FundsDepositedEvent {
-            account_number: cmd.account_number,
+    vec![Event::new(
+        FUNDS_DEPOSITED_EVENT_TYPE,
+        STREAM,
+        FundsDepositedEvent {
+            account_number: cmd.account_number.to_string(),
             amount: cmd.amount,
             customer_id: cmd.customer_id,
             note: cmd.note,
-        })
-        .unwrap(),
-        stream: STREAM.to_string(),
-    }]
+        },
+    )]
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -147,6 +289,39 @@ struct AggregateState {
     // cents to avoid using float
     pub balance: u32,
     pub min_balance: u32,
+    pub reserved_amount: u32,
     pub account_number: String,
     pub customer_id: String,
+}
+
+impl StateAck {
+    fn ok(state: Option<AggregateState>) -> StateAck {
+        StateAck {
+            succeeded: true,
+            error: None,
+            state: state
+                .clone()
+                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
+        }
+    }
+
+    fn error(msg: &str, state: Option<AggregateState>) -> StateAck {
+        StateAck {
+            succeeded: false,
+            error: Some(msg.to_string()),
+            state: state
+                .clone()
+                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
+        }
+    }
+}
+
+impl Event {
+    fn new(event_type: &str, stream: &str, payload: impl Serialize) -> Event {
+        Event {
+            event_type: event_type.to_string(),
+            stream: stream.to_string(),
+            payload: serde_json::to_vec(&payload).unwrap_or_default(),
+        }
+    }
 }

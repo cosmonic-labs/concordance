@@ -176,6 +176,7 @@ mod test {
         let agg = InterestDeclaration::aggregate_for_commands(
             "Mxbob",
             "order",
+            "order_id",
             LinkDefinition::default(),
         );
         let mut cc = CommandConsumer::try_new(c, agg).await.unwrap();
@@ -215,6 +216,7 @@ mod test {
         let not_an_aggregate = InterestDeclaration {
             actor_id: "bob".to_string(),
             entity_name: "testbob".to_string(),
+            key_field: "order_id".to_string(),
             interest_constraint: InterestConstraint::Events,
             interest: ActorInterest::None,
             role: ActorRole::Projector,
@@ -236,6 +238,7 @@ mod test {
         let agg = InterestDeclaration::aggregate_for_commands(
             "Mxbob",
             "superbob",
+            "order_id",
             LinkDefinition::default(),
         );
         let cc = CommandConsumer::try_new(c, agg).await;
