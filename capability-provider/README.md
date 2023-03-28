@@ -1,9 +1,11 @@
 # Concordance Event Sourcing Capability Provider
-TBD
+This is the [wasmCloud](https://wasmcloud.com) capability provider for the Concordance event sourcing framework. This provider
+and all associated developer experiences are under heavy, rapidly iterating development at the moment. API surface area and even
+binary compatibility may change frequently at this stage.
 
 
 ## Replay
-TBD
+⚠️ _under construction_: The following is more of a note to self on how to manually initiate a replay of a given consumer
 
 Reset a consumer (replay to its interested party):
 ```
