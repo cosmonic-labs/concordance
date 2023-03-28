@@ -20,7 +20,10 @@ struct BankAccountAggregate {}
 #[async_trait]
 impl AggregateService for BankAccountAggregate {
     async fn handle_command(&self, _ctx: &Context, arg: &StatefulCommand) -> RpcResult<EventList> {
-        info!("Aggregate handling command: {}", arg.command_type.as_str());
+        info!(
+            "Bank account aggregate handling command: {}",
+            arg.command_type.as_str()
+        );
 
         let state: Option<AggregateState> = arg
             .state
@@ -32,6 +35,10 @@ impl AggregateService for BankAccountAggregate {
                 deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
             ),
             RESERVE_FUNDS_TYPE => reserve_funds(
+                state,
+                deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
+            ),
+            RELEASE_RESERVED_FUNDS_TYPE => release_reserved_funds(
                 state,
                 deserialize(&arg.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
             ),
@@ -58,7 +65,10 @@ impl AggregateService for BankAccountAggregate {
     }
 
     async fn apply_event(&self, _ctx: &Context, arg: &EventWithState) -> RpcResult<StateAck> {
-        info!("Handling event {}", arg.event.event_type);
+        info!(
+            "Bank account aggregate handling event {}",
+            arg.event.event_type
+        );
 
         let state: Option<AggregateState> = arg
             .state
@@ -80,7 +90,7 @@ impl AggregateService for BankAccountAggregate {
             WIRE_FUNDS_RESERVED_EVENT_TYPE => apply_funds_reserved(
                 state,
                 deserialize(&arg.event.payload).map_err(|e| RpcError::Deser(e.to_string()))?,
-            ),                    
+            ),
             e => {
                 debug!("Non-state-mutating event received '{e}'. Acking and moving on.");
                 StateAck::ok(state)
@@ -88,7 +98,6 @@ impl AggregateService for BankAccountAggregate {
         })
     }
 }
-
 
 // This function doesn't use/care about pre-existing state. This creates it new
 fn apply_account_created(event: AccountCreatedEvent) -> StateAck {
@@ -207,6 +216,26 @@ fn initiate_interbank_transfer(
             wire_transfer_id: cmd.wire_transfer_id,
             target_account_number: cmd.target_account_number,
             target_routing_number: cmd.target_routing_number,
+        },
+    )]
+}
+
+fn release_reserved_funds(state: Option<AggregateState>, cmd: ReleaseReservedFunds) -> EventList {
+    let Some(old_state) = state else {
+        error!(
+            "Rejected incoming command to release reserved funds. Account {} does not exist.",
+            cmd.account_number
+        );
+        return vec![];
+    };
+    let adj_amount = cmd.amount.min(old_state.balance);
+    vec![Event::new(
+        WIRE_FUNDS_RELEASED_EVENT_TYPE,
+        STREAM,
+        WireFundsReleased {
+            account_number: cmd.account_number.to_string(),
+            wire_transfer_id: cmd.wire_transfer_id.to_string(),
+            amount: adj_amount,
         },
     )]
 }

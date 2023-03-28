@@ -1,12 +1,12 @@
 use async_nats::jetstream::stream::Stream as NatsStream;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use std::{collections::HashMap, sync::Arc};
-use tokio::{sync::RwLock, time::timeout};
+use tokio::sync::RwLock;
 use tracing::{error, trace, Instrument};
 
 use crate::{
-    config::{ActorRole, InterestConstraint, InterestDeclaration},
-    natsclient::{AckableMessage, SEND_TIMEOUT_DURATION},
+    config::{InterestConstraint, InterestDeclaration},
+    natsclient::AckableMessage,
 };
 
 use super::{CreateConsumer, WorkError, WorkHandles, WorkResult, Worker};
@@ -128,15 +128,15 @@ mod test {
     use crate::{
         config::InterestDeclaration,
         consumers::{
-            event_worker::EventWorker, manager::ConsumerManager, CommandConsumer, EventConsumer,
-            RawCommand, WorkResult, Worker,
+            manager::ConsumerManager, CommandConsumer, EventConsumer, RawCommand, WorkResult,
+            Worker,
         },
         natsclient::{
             test::{clear_streams, create_js_context, publish_command},
             AckableMessage, NatsClient,
         },
         state::EntityState,
-        workers::AggregateCommandWorker,
+        workers::{AggregateCommandWorker, AggregateEventWorker},
     };
 
     #[tokio::test]
@@ -174,9 +174,9 @@ mod test {
             "account_number",
             LinkDefinition::default(),
         );
-        cm.add_consumer::<EventWorker, EventConsumer>(
+        cm.add_consumer::<AggregateEventWorker, EventConsumer>(
             interest2.clone(),
-            EventWorker {
+            AggregateEventWorker {
                 nc,
                 context: js.clone(),
                 interest: interest.clone(),
