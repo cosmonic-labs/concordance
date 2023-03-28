@@ -14,4 +14,3 @@ pub fn deserialize<'de, T: Deserialize<'de>>(
 pub fn serialize<T: Serialize>(data: &T) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     serde_json::to_vec(data).map_err(|e| format!("Serialization failure: {e:?}").into())
 }
-

@@ -12,20 +12,31 @@ use org.wasmcloud.model#wasmbus
 use org.wasmcloud.model#U32
 use org.wasmcloud.model#U64
 
+// A stateless event handler service can be used for any interested entity that
+// does not need its state reconstituted before or after event application. This can
+// be a notifier or a projector under the current set of terminology.
+@wasmbus(
+    contractId: "cosmonic:eventsourcing",
+    actorReceive: true
+)
+service StatelessEventHandlerService {
+    version: "0.1",
+    operations: [ ApplyStatelessEvent ]
+}
+
+
+// Applies an event to the the handler and obtains a simple ack in response
+operation ApplyStatelessEvent {
+    input: Event,
+    output: StatelessAck,
+}
+
 
 // Represents an internal event
 structure Event {
     @required
     stream: String,
-
-    // // Key used to uniquely identify the instance of an interested aggregate. Empty for no key
-    // @required
-    // aggregate_key: String,
-
-    // // Key used to uniquely identify the instance of an interested process manager. Empty for no key
-    // @required
-    // pm_key: String,
-
+   
     @required
     eventType: String,
 
@@ -45,3 +56,11 @@ structure EventWithState {
     state: Blob    
 }
 
+// Returned from a general event application by a notifier or projector
+structure StatelessAck {
+    @required
+    succeeded: Boolean,
+
+    /// Optional error message
+    error: String
+}

@@ -1,0 +1,1 @@
+This directory contains tools, scripts, makefiles and other things that may be used for building and continuous integration.

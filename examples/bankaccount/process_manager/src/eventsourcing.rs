@@ -805,6 +805,102 @@ pub fn decode_stateful_command(
     };
     Ok(__result)
 }
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct StatelessAck {
+    /// Optional error message
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub succeeded: bool,
+}
+
+// Encode StatelessAck as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_stateless_ack<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &StatelessAck,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(2)?;
+    if let Some(val) = val.error.as_ref() {
+        e.str("error")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    e.str("succeeded")?;
+    e.bool(val.succeeded)?;
+    Ok(())
+}
+
+// Decode StatelessAck from cbor input stream
+#[doc(hidden)]
+pub fn decode_stateless_ack(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<StatelessAck, RpcError> {
+    let __result = {
+        let mut error: Option<Option<String>> = Some(None);
+        let mut succeeded: Option<bool> = None;
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct StatelessAck, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        error = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    1 => succeeded = Some(d.bool()?),
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "error" => {
+                        error = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "succeeded" => succeeded = Some(d.bool()?),
+                    _ => d.skip()?,
+                }
+            }
+        }
+        StatelessAck {
+            error: error.unwrap(),
+
+            succeeded: if let Some(__x) = succeeded {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field StatelessAck.succeeded (#1)".to_string(),
+                ));
+            },
+        }
+    };
+    Ok(__result)
+}
 /// wasmbus.contractId: cosmonic:eventsourcing
 /// wasmbus.actorReceive
 #[async_trait]
@@ -1035,6 +1131,107 @@ impl<T: Transport + std::marker::Sync + std::marker::Send> ProcessManagerService
 
         let value: ProcessManagerAck = wasmbus_rpc::common::deserialize(&resp)
             .map_err(|e| RpcError::Deser(format!("'{}': ProcessManagerAck", e)))?;
+        Ok(value)
+    }
+}
+
+/// wasmbus.contractId: cosmonic:eventsourcing
+/// wasmbus.actorReceive
+#[async_trait]
+pub trait StatelessEventHandlerService {
+    /// returns the capability contract id for this interface
+    fn contract_id() -> &'static str {
+        "cosmonic:eventsourcing"
+    }
+    async fn apply_stateless_event(&self, ctx: &Context, arg: &Event) -> RpcResult<StatelessAck>;
+}
+
+/// StatelessEventHandlerServiceReceiver receives messages defined in the StatelessEventHandlerService service trait
+#[doc(hidden)]
+#[async_trait]
+pub trait StatelessEventHandlerServiceReceiver:
+    MessageDispatch + StatelessEventHandlerService
+{
+    async fn dispatch(&self, ctx: &Context, message: Message<'_>) -> Result<Vec<u8>, RpcError> {
+        match message.method {
+            "ApplyStatelessEvent" => {
+                let value: Event = wasmbus_rpc::common::deserialize(&message.arg)
+                    .map_err(|e| RpcError::Deser(format!("'Event': {}", e)))?;
+
+                let resp =
+                    StatelessEventHandlerService::apply_stateless_event(self, ctx, &value).await?;
+                let buf = wasmbus_rpc::common::serialize(&resp)?;
+
+                Ok(buf)
+            }
+            _ => Err(RpcError::MethodNotHandled(format!(
+                "StatelessEventHandlerService::{}",
+                message.method
+            ))),
+        }
+    }
+}
+
+/// StatelessEventHandlerServiceSender sends messages to a StatelessEventHandlerService service
+/// client for sending StatelessEventHandlerService messages
+#[derive(Clone, Debug)]
+pub struct StatelessEventHandlerServiceSender<T: Transport> {
+    transport: T,
+}
+
+impl<T: Transport> StatelessEventHandlerServiceSender<T> {
+    /// Constructs a StatelessEventHandlerServiceSender with the specified transport
+    pub fn via(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub fn set_timeout(&self, interval: std::time::Duration) {
+        self.transport.set_timeout(interval);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<'send> StatelessEventHandlerServiceSender<wasmbus_rpc::provider::ProviderTransport<'send>> {
+    /// Constructs a Sender using an actor's LinkDefinition,
+    /// Uses the provider's HostBridge for rpc
+    pub fn for_actor(ld: &'send wasmbus_rpc::core::LinkDefinition) -> Self {
+        Self {
+            transport: wasmbus_rpc::provider::ProviderTransport::new(ld, None),
+        }
+    }
+}
+#[cfg(target_arch = "wasm32")]
+impl StatelessEventHandlerServiceSender<wasmbus_rpc::actor::prelude::WasmHost> {
+    /// Constructs a client for actor-to-actor messaging
+    /// using the recipient actor's public key
+    pub fn to_actor(actor_id: &str) -> Self {
+        let transport =
+            wasmbus_rpc::actor::prelude::WasmHost::to_actor(actor_id.to_string()).unwrap();
+        Self { transport }
+    }
+}
+#[async_trait]
+impl<T: Transport + std::marker::Sync + std::marker::Send> StatelessEventHandlerService
+    for StatelessEventHandlerServiceSender<T>
+{
+    #[allow(unused)]
+    async fn apply_stateless_event(&self, ctx: &Context, arg: &Event) -> RpcResult<StatelessAck> {
+        let buf = wasmbus_rpc::common::serialize(arg)?;
+
+        let resp = self
+            .transport
+            .send(
+                ctx,
+                Message {
+                    method: "StatelessEventHandlerService.ApplyStatelessEvent",
+                    arg: Cow::Borrowed(&buf),
+                },
+                None,
+            )
+            .await?;
+
+        let value: StatelessAck = wasmbus_rpc::common::deserialize(&resp)
+            .map_err(|e| RpcError::Deser(format!("'{}': StatelessAck", e)))?;
         Ok(value)
     }
 }

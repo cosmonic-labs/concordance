@@ -12,7 +12,6 @@ pub struct CreateAccountCommand {
     pub customer_id: String,
 }
 
-
 /// Requests the withdrawal of funds from the account. A real request would have much
 /// more metadata on it, but in this case we use the `note` field to indicate the nature of
 /// the withdrawal, e.g. "ATM withdrawal" or "teller withdrawal", etc
@@ -34,7 +33,7 @@ pub struct DepositFundsCommand {
     pub account_number: String,
     pub amount: u32,
     pub note: String,
-    pub customer_id: String
+    pub customer_id: String,
 }
 
 /// Requests the simple transfer of funds between accounts owned by the same customer
@@ -49,7 +48,7 @@ pub struct TransferFundsCommand {
 
 /// Requests a transfer of funds between banks, with the `account_number` representing
 /// the source account and the target fields identifying the destination of the funds
-/// transfer. Events produced by the processing of this command result in the generation 
+/// transfer. Events produced by the processing of this command result in the generation
 /// of multi-step processes managed by the process manager for interbank transfers
 pub const WIRE_TRANSFER_REQUEST_TYPE: &str = "request_wire_transfer";
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,8 +57,8 @@ pub struct RequestWireTransfer {
     pub amount: u32,
     pub note: String,
     pub target_routing_number: String,
-    pub target_account_number: String,    
-    pub wire_transfer_id: String
+    pub target_account_number: String,
+    pub wire_transfer_id: String,
 }
 
 /// Reserves funds in a target account with regard to a given wire transfer transaction
@@ -86,7 +85,6 @@ pub struct InitiateInterbankTransfer {
     pub target_account_number: String,
 }
 
-
 /// Upon successful completion of an interbank wire transfer, the previously reserved funds
 /// will be withdrawn from the source account
 pub const WITHDRAW_RESERVED_FUNDS_TYPE: &str = "withdraw_reserved_funds";
@@ -94,7 +92,7 @@ pub const WITHDRAW_RESERVED_FUNDS_TYPE: &str = "withdraw_reserved_funds";
 pub struct WithdrawReservedFunds {
     pub account_number: String,
     pub wire_transfer_id: String,
-    pub amount: u32
+    pub amount: u32,
 }
 
 /// If an interbank wire transfer fails, then this command will request the release of previously
@@ -104,5 +102,5 @@ pub const RELEASE_RESERVED_FUNDS_TYPE: &str = "release_reserved_funds";
 pub struct ReleaseReservedFunds {
     pub account_number: String,
     pub wire_transfer_id: String,
-    pub amount: u32
+    pub amount: u32,
 }

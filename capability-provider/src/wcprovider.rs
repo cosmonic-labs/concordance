@@ -7,12 +7,14 @@ use wasmbus_rpc::core::{HealthCheckRequest, HealthCheckResponse};
 use wasmbus_rpc::provider::prelude::*;
 
 use crate::config::{ActorRole, BaseConfiguration, InterestConstraint, InterestDeclaration};
-use crate::consumers::{CommandConsumer, ConsumerManager, EventConsumer, EventWorker};
+use crate::consumers::{CommandConsumer, ConsumerManager, EventConsumer};
 use crate::Result;
 
 use crate::natsclient::NatsClient;
 use crate::state::EntityState;
-use crate::workers::{AggregateCommandWorker, AggregateEventWorker, ProcessManagerWorker};
+use crate::workers::{
+    AggregateCommandWorker, AggregateEventWorker, GeneralEventWorker, ProcessManagerWorker,
+};
 
 #[derive(Clone, Provider)]
 pub struct ConcordanceProvider {
@@ -52,8 +54,7 @@ impl ConcordanceProvider {
         Ok(match (&decl.interest_constraint, &decl.role) {
             (Commands, _) => self.add_aggregate_cmd_consumer(decl).await,
             (Events, ProcessManager) => self.add_process_manager_consumer(decl).await,
-            (Events, Projector) => self.add_projector_consumer(decl).await,
-            (Events, Notifier) => self.add_notifier_consumer(decl).await,
+            (Events, Projector) | (Events, Notifier) => self.add_general_event_consumer(decl).await,
             (Events, Aggregate) => self.add_aggregate_event_consumer(decl).await,
             (a, b) => {
                 warn!("Unsupported combination of consumer and worker: {a:?} {b:?}. Ignoring.");
@@ -64,38 +65,12 @@ impl ConcordanceProvider {
 
     /// Adds a consumer to the manager for notifiers. This is currently a generic worker because
     /// notifiers have just the simple stateless event handler contract
-    async fn add_notifier_consumer(&self, decl: &InterestDeclaration) -> bool {
+    async fn add_general_event_consumer(&self, decl: &InterestDeclaration) -> bool {
         if let Err(e) = self
             .consumer_manager
-            .add_consumer::<EventWorker, EventConsumer>(
+            .add_consumer::<GeneralEventWorker, EventConsumer>(
                 decl.to_owned(),
-                EventWorker::new(
-                    self.nc.clone(),
-                    self.js.clone(),
-                    decl.clone(),
-                    self.state.clone(),
-                ),
-            )
-            .await
-        {
-            error!(
-                "Failed to add event consumer for {} ({}): {}",
-                decl.entity_name, decl.actor_id, e
-            );
-            return false;
-        }
-        true
-    }
-
-    /// Adds a consumer to the manager for projectors. This is currently a generic worker
-    /// because projectors just expose the simple stateless event handler (projection state is the responsibility of
-    /// the actor, not the provider)
-    async fn add_projector_consumer(&self, decl: &InterestDeclaration) -> bool {
-        if let Err(e) = self
-            .consumer_manager
-            .add_consumer::<EventWorker, EventConsumer>(
-                decl.to_owned(),
-                EventWorker::new(
+                GeneralEventWorker::new(
                     self.nc.clone(),
                     self.js.clone(),
                     decl.clone(),
@@ -231,14 +206,7 @@ pub(crate) mod test {
     use std::collections::HashMap;
 
     use async_nats::jetstream::consumer::AckPolicy;
-    use async_trait::async_trait;
-    use wasmbus_rpc::{
-        common::{Context, Message, SendOpts, Transport},
-        core::LinkDefinition,
-        error::RpcError,
-        provider::ProviderHandler,
-        wascap::prelude::KeyPair,
-    };
+    use wasmbus_rpc::{core::LinkDefinition, provider::ProviderHandler, wascap::prelude::KeyPair};
 
     use crate::{
         config::BaseConfiguration,
