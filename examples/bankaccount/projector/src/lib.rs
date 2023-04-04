@@ -16,6 +16,13 @@ use eventsourcing::Event as ConcordanceEvent;
 #[services(Actor, StatelessEventHandlerService)]
 struct BankAccountProjector {}
 
+// In phase 2, code generation will produce strongly-typed handler traits that will
+// manage the match statement internally prior to developer functions.
+//
+// pub trait BankAccountProjectorService: StatelessEventHandlerService {
+//     async fn apply_account_created(arg: &AccountCreatedEvent) -> RpcResult<StatelessAck>;
+// }
+
 #[async_trait]
 impl StatelessEventHandlerService for BankAccountProjector {
     async fn apply_stateless_event(
