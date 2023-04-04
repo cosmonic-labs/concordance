@@ -58,8 +58,8 @@ $(DIST_WASM): $(UNSIGNED_WASM) Makefile
 	$(WASH) claims sign $< \
 		$(foreach claim,$(CLAIMS), -c $(claim) ) \
 		--name $(ACTOR_NAME) --ver $(VERSION) --rev $(REVISION) \
-		$(if $(ACTOR_ALIAS),--call-alias $(ACTOR_ALIAS)) \
-		--destination $@
+		--issuer `cat ../bank_issuer.nk` --directory '$(KEYDIR)' --disable-keygen \
+		$(if $(ACTOR_ALIAS),--call-alias $(ACTOR_ALIAS)) --destination $@
 
 # rules to print file name and path of build target
 target-path:
