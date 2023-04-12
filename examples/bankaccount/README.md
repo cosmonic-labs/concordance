@@ -188,7 +188,8 @@ wash ctl link put $AGGREGATE_ACTOR_ID $CONCORDANCE_PROVIDER_ID \
     ROLE=aggregate KEY=account_number INTEREST=bankaccount NAME=bankaccount
 ```
 
-> :warning: You *must* use the script above or `wash` on the command line directly
+> **Warning**
+> You *must* use the script above or `wash` on the command line directly
 > to create the links -- washboard currently has issues parsing complex link vars
 
 Once the script has been run, your dashboard should look like the following:
