@@ -159,7 +159,7 @@ The actors and providers should have links as outlined below:
 | `process_manager` | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=process_manager KEY=wire_transfer_id NAME=interbankxfer INTEREST='{"start":"wire_transfer_requested","advance":["wire_funds_reserved","interbank_transfer_initiated"],"stop":["interbank_transfer_completed","interbank_transfer_failed"]}'` |
 | `aggregate`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=aggregate KEY=account_number INTEREST=bankaccount NAME=bankaccount`
 
-To link them quickly, run the script below:
+Use the script below to create the links:
 
 ```console
 export CONCORDANCE_PROVIDER_ID=VAW26CNCVKOTLIJVX2H4WD5T36NKBGWS2GVOIOKAAOOFIJDOJBRFMQZX
@@ -188,9 +188,12 @@ wash ctl link put $AGGREGATE_ACTOR_ID $CONCORDANCE_PROVIDER_ID \
     ROLE=aggregate KEY=account_number INTEREST=bankaccount NAME=bankaccount
 ```
 
+> :warning: You *must* use the script above or `wash` on the command line directly
+> to create the links -- washboard currently has issues parsing complex link vars
+
 Once the script has been run, your dashboard should look like the following:
 
-![Link actors to concordance provider](./docs/videos/all-links-established.png)
+![Link actors to concordance provider](./docs/images/all-links-established.png)
 
 Follow the same process for all other links.
 
@@ -209,7 +212,7 @@ Follow the same process for all other links.
 With all the pieces of the concordance demo running, you can check the state of the system with `nats stream list`:
 
 ```console
-% nats stream list
+$ nats stream list
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │                                                                Streams                                                                 │
 ├─────────────┬───────────────────────────────────────────────────────────────────┬─────────────────────┬──────────┬──────┬──────────────┤
@@ -229,7 +232,7 @@ Here we can observe that the NATS streams that will carry our event sourcing tra
 > nats stream purge CC_COMMANDS -f
 > ```
 
-Now, to set the system in motion we can execute a simple scenario:
+To set the system in motion, from the `examples/bankaccount` directory (where this README is), we can execute a simple scenario:
 
 **First, we create an account `ABC123` with an intiial balance of 4000 units of $CURRENCY, the event sourcing way (by creating a command):**
 
@@ -269,19 +272,22 @@ If you're good at quick math, you already know the amount that should be in the 
 
 Let's check if we have 6000 units of currency:
 
-```console
-nats kv get CC_STATE agg.bankaccount.ABC123
 ```
-
-If all went well you should see:
-
-```
-% nats kv get CC_STATE agg.bankaccount.ABC123
+$ nats kv get CC_STATE agg.bankaccount.ABC123
 CC_STATE > agg.bankaccount.ABC123 created @ 10 Apr 23 18:32 UTC
 
 {"balance":6000,"min_balance":100,"reserved_amount":0,"account_number":"ABC123","customer_id":"CUSTBOB"}
 ```
 
+You can also confirm that state was persisted in redis if you have [`redis-cli`][redis-cli] installed:
+
+```
+$ redis-cli get balance.ABC123
+"6000"
+```
+
 🎉 Congratulations, you've completed the demo and performed event sourcing logging with the safety and performance of WebAssembly! 🎉
+
+[redis-cli]: https://redis.io/docs/ui/cli/
 
 </details>
