@@ -34,10 +34,13 @@ Along with `wash`, ensure you have access to the following:
 
 - [`nats` client](https://docs.nats.io/running-a-nats-service/clients) for communicating with NATS
 - [`jq`](https://stedolan.github.io/jq/) for displaying JSON
+- [`redis-server`][redis] to use with your [`kvredis` capability provider][wasmcloud-kvredis]
 
 [wasmcloud]: https://wasmcloud.com
 [wash-docs-install]: https://github.com/wasmCloud/wash#installing-wash
 [rust-toolchain]: https://www.rust-lang.org/tools/install
+[redis]: https://redis.io
+[wasmcloud-kvredis]: https://github.com/wasmCloud/capability-providers/tree/main/kvredis
 
 </details>
 
@@ -150,16 +153,7 @@ Follow the same process for `process_manager` and `aggregate` actors.
 
 To enable communication between the actors and providers, we need to [link them][wasmcloud-docs-linkdefs].
 
-The actors and providers should have links as outlined below:
-
-| actor             | provider      | link name | contract ID               | values                                                                                                                                                                                                                                             |
-|-------------------|---------------|-----------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `projector`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=projector,INTEREST=account_created,funds_deposited,funds_withdrawn,wire_funds_reserved,wire_funds_released,NAME=bankaccount_projector`                                                                                                       |
-| `projector`       | `keyvalue`    | `default` | `wasmcloud:keyvalue`      | `URL='redis://0.0.0.0:6379/'`                                                                                                                                                                                                                      |
-| `process_manager` | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=process_manager KEY=wire_transfer_id NAME=interbankxfer INTEREST='{"start":"wire_transfer_requested","advance":["wire_funds_reserved","interbank_transfer_initiated"],"stop":["interbank_transfer_completed","interbank_transfer_failed"]}'` |
-| `aggregate`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=aggregate KEY=account_number INTEREST=bankaccount NAME=bankaccount`
-
-Use the script below to create the links:
+Run the script below to create the links:
 
 ```console
 export CONCORDANCE_PROVIDER_ID=VAW26CNCVKOTLIJVX2H4WD5T36NKBGWS2GVOIOKAAOOFIJDOJBRFMQZX
@@ -192,6 +186,14 @@ wash ctl link put $AGGREGATE_ACTOR_ID $CONCORDANCE_PROVIDER_ID \
 > You *must* use the script above or `wash` on the command line directly
 > to create the links -- washboard currently has issues parsing complex link vars
 
+After the script completes, the links should look like the following:
+
+| actor             | provider      | link name | contract ID               | values                                                                                                                                                                                                                                             |
+|-------------------|---------------|-----------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `projector`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=projector,INTEREST=account_created,funds_deposited,funds_withdrawn,wire_funds_reserved,wire_funds_released,NAME=bankaccount_projector`                                                                                                       |
+| `projector`       | `keyvalue`    | `default` | `wasmcloud:keyvalue`      | `URL='redis://0.0.0.0:6379/'`                                                                                                                                                                                                                      |
+| `process_manager` | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=process_manager,KEY=wire_transfer_id,NAME=interbankxfer,INTEREST='{"start":"wire_transfer_requested","advance":["wire_funds_reserved","interbank_transfer_initiated"],"stop":["interbank_transfer_completed","interbank_transfer_failed"]}'` |
+| `aggregate`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=aggregate,KEY=account_number,INTEREST=bankaccount,NAME=bankaccount`                                                                                                                                                                          |
 Once the script has been run, your dashboard should look like the following:
 
 ![Link actors to concordance provider](./docs/images/all-links-established.png)
