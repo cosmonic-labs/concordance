@@ -32,8 +32,8 @@ For other options on how to install `wash`, see [the `wasmcloud/wash`][wash-docs
 
 Along with `wash`, ensure you have access to the following:
 
-- [`nats` client](https://docs.nats.io/running-a-nats-service/clients) for communicating with NATS
-- [`jq`](https://stedolan.github.io/jq/) for displaying JSON
+- [`nats` CLI](https://docs.nats.io/using-nats/nats-tools/nats_cli) for communicating with NATS
+- [`jq`](https://stedolan.github.io/jq/) for displaying and parsing JSON
 - [`redis-server`][redis] to use with your [`kvredis` capability provider][wasmcloud-kvredis]
 
 [wasmcloud]: https://wasmcloud.com
@@ -58,9 +58,7 @@ Run an instance of wasmCloud locally by running `wash up`:
 wash up
 ```
 
-You can visit the wasmCloud dashbaord ("washboard") at [https://localhost:4000](https://localhost:4000) (by deafult).
-
-> You can start a wasmCloud host, start all of the bank account actors, and then start both the Concordance provider and your key-value provider of choice. Set the link definitions accordingly and then run the scenario_1.sh script in the scripts directory. You should then see the aggregate state stored in the CC_STATE bucket, the resulting events in the CC_EVENTS stream, and, assuming you used Redis, you'll see a balance projection in balance.ABC123 and the ledger JSON structure in ledger.ABC123.
+You can visit the wasmCloud dashboard (also known as the "washboard") at [https://localhost:4000](https://localhost:4000) (by default).
 
 </details>
 
@@ -72,7 +70,9 @@ You can visit the wasmCloud dashbaord ("washboard") at [https://localhost:4000](
 
 </summary>
 
-Build all actors in this repository by executing the default target of the Makefile in this folder:
+You will need to run `make par full` in the `/capability-provider` directory in this repository to generate your own copy of the provider. Once Concordance has had a published release, you'll be able to use its OCI reference.
+
+Next, build all actors in this repository by executing the default target of the Makefile in this folder:
 
 ```console
 make
@@ -82,10 +82,9 @@ That command will build the following [identity-verified actors][wasmcloud-signi
 
 | Name              | File Path after build                                       | Description                                      |
 |-------------------|-------------------------------------------------------------|--------------------------------------------------|
-| `concordance`     | `../../../../capability-provider/build/concordance.par.gz`  | Concordance provider which powers event sourcing |
-| `process_manager` | `./process_manager/build/bankaccount_processmanager_s.wasm` | Manages processes that emit events               |
-| `projector`       | `./projector/build/bankaccount_projector_s.wasm`            | Projects events into state                       |
-| `aggregate`       | `./aggregate/build/bankaccount_aggregate_s.wasm`            | Aggregates the state                             |
+| `process_manager` | `./process_manager/build/bankaccount_processmanager_s.wasm` | The inter-bank transfer process manager |
+| `projector`       | `./projector/build/bankaccount_projector_s.wasm`            | Projector for account balance and ledger                  |
+| `aggregate`       | `./aggregate/build/bankaccount_aggregate_s.wasm`            | Aggregate that validates commands and emits events |
 
 [wasmcloud-signing]: https://wasmcloud.com/docs/reference/host-runtime/security#actor-identity
 
@@ -101,13 +100,13 @@ That command will build the following [identity-verified actors][wasmcloud-signi
 
 #### 3.1 Start the `concordance` provider
 
-To facilitate the [Event Sourcing][wiki-es] paradigm, we'll need the wasmCloud provider build to support the Event Sourcing Pattern in wasmCloud - `concordance`.
+To facilitate the [Event Sourcing][wiki-es] paradigm, we'll need to use Cosmonic's event sourcing capability provider - `concordance`.
 
 To start the provider, use the washboard to upload `concordance.par.gz`:
 
 ![Upload concordance provider to washboard](./docs/videos/install-concordance-par.gif)
 
-When finished, the washboard should display the concordance provider:
+When finished, the washboard should display the Concordance provider:
 
 ![Washboard with concordance provider loaded](./docs/images/washboard-with-concordance.png)
 
@@ -117,7 +116,7 @@ When finished, the washboard should display the concordance provider:
 
 To store state from actors like the `projector`, the [`keyvalue` redis provider][wasmcloud-kv-provider] can be used.
 
-You can start the `keyvalue` provider by it's container image (`wasmcloud.azurecr.io/kvredis:0.19.0`):
+You can start the `keyvalue` provider by its container image (`wasmcloud.azurecr.io/kvredis:0.19.0`):
 
 ![Start redis provider](./docs/videos/start-keyvalue-provider.gif)
 
@@ -151,7 +150,7 @@ Follow the same process for `process_manager` and `aggregate` actors.
 
 </summary>
 
-To enable communication between the actors and providers, we need to [link them][wasmcloud-docs-linkdefs].
+To enable communication between the actors and providers, we need to [link them][wasmcloud-docs-linkdefs]. While you can usually use the dashboard to link actors and providers, because one of the providers requires JSON data, we currently have to use the `wash` CLI.
 
 Run the script below to create the links:
 
@@ -182,9 +181,7 @@ wash ctl link put $AGGREGATE_ACTOR_ID $CONCORDANCE_PROVIDER_ID \
     ROLE=aggregate KEY=account_number INTEREST=bankaccount NAME=bankaccount
 ```
 
-> **Warning**
-> You *must* use the script above or `wash` on the command line directly
-> to create the links -- washboard currently has issues parsing complex link vars
+⚠️ **WARNING** - The value of `CONCORDANCE_PROVIDER_ID` will be different on your machine when you're building locally. To determine what your provider's public key is, run `wash claims inspect` on the `/capability-provider/build/concordance.par.gz` file in this repository after you've built it. You can also copy this public key from the washboard on port 4000 if you find that easier.
 
 After the script completes, the links should look like the following:
 
@@ -193,7 +190,8 @@ After the script completes, the links should look like the following:
 | `projector`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=projector,INTEREST=account_created,funds_deposited,funds_withdrawn,wire_funds_reserved,wire_funds_released,NAME=bankaccount_projector`                                                                                                       |
 | `projector`       | `keyvalue`    | `default` | `wasmcloud:keyvalue`      | `URL='redis://0.0.0.0:6379/'`                                                                                                                                                                                                                      |
 | `process_manager` | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=process_manager,KEY=wire_transfer_id,NAME=interbankxfer,INTEREST='{"start":"wire_transfer_requested","advance":["wire_funds_reserved","interbank_transfer_initiated"],"stop":["interbank_transfer_completed","interbank_transfer_failed"]}'` |
-| `aggregate`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=aggregate,KEY=account_number,INTEREST=bankaccount,NAME=bankaccount`                                                                                                                                                                          |
+| `aggregate`       | `concordance` | `default` | `wasmcloud:eventsourcing` | `ROLE=aggregate,KEY=account_number,INTEREST=bankaccount,NAME=bankaccount`                                        |
+
 Once the script has been run, your dashboard should look like the following:
 
 ![Link actors to concordance provider](./docs/images/all-links-established.png)
@@ -237,7 +235,7 @@ Here we can observe that the NATS streams that will carry our event sourcing tra
 
 To set the system in motion, from the `examples/bankaccount` directory (where this README is), we can execute a simple scenario:
 
-**First, we create an account `ABC123` with an intiial balance of 4000 units of $CURRENCY, the event sourcing way (by creating a command):**
+**First, we create an account `ABC123` with an intiial balance of 4000 cents (used to avoid floating point friction), the event sourcing way (by creating a command):**
 
 ```console
 nats req cc.commands.bankaccount "`cat ./scripts/create_account_cmd.json | jq -c`"
@@ -251,19 +249,19 @@ nats req cc.commands.bankaccount "`cat ./scripts/create_account_cmd.json | jq -c
 > {"stream":"CC_COMMANDS", "domain":"core", "seq":1}
 > ```
 
-**Then we create a deposit in account `ABC123` for 3000 units of $CURRENCY for the given account**:
+**Then we create a deposit in account `ABC123` for 3000 (30 dollars)**:
 
 ```console
 nats req cc.commands.bankaccount "`cat ./scripts/deposit_cmd_1.json | jq -c`"
 ```
 
-**We can then create a second deposit for 1000 units of $CURRENCY**:
+**We can then create a second deposit for 1000 cents**:
 
 ```console
 nats req cc.commands.bankaccount "`cat ./scripts/deposit_cmd_2.json | jq -c`"
 ```
 
-**Finally, we make a withdrawal of 2000 units of $CURRENCY**:
+**Finally, we make a withdrawal of 2000 cents**:
 
 ```console
 nats req cc.commands.bankaccount "`cat ./scripts/withdraw_cmd_1.json | jq -c`"
@@ -273,7 +271,7 @@ If you're good at quick math, you already know the amount that should be in the 
 
 4000 + 3000 + 1000 - 2000 = 6000
 
-Let's check if we have 6000 units of currency:
+Let's check if we have 6000 cents:
 
 ```
 $ nats kv get CC_STATE agg.bankaccount.ABC123
@@ -289,7 +287,9 @@ $ redis-cli get balance.ABC123
 "6000"
 ```
 
-🎉 Congratulations, you've completed the demo and performed event sourcing logging with the safety and performance of WebAssembly! 🎉
+You can also see a JSON representation of the account ledger by using the Redis CLI to query the `ledger.ABC123` key.
+
+🎉 Congratulations, you've completed the demo and run a fully scalable and resilient event sourced application with the safety and performance of WebAssembly! 🎉
 
 [redis-cli]: https://redis.io/docs/ui/cli/
 
