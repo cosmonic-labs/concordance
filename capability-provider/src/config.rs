@@ -7,6 +7,7 @@ use core::fmt;
 use std::{collections::HashMap, hash::Hash};
 
 use crate::eventsourcing::Event as ConcordanceEvent;
+use crate::natsclient::SEND_TIMEOUT_DURATION;
 use crate::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
@@ -71,6 +72,7 @@ impl BaseConfiguration {
                 return Err("must provide both jwt and seed for jwt authentication".into());
             }
         };
+        let base_opts = base_opts.request_timeout(Some(SEND_TIMEOUT_DURATION));
         Ok(
             wasmbus_rpc::rpc_client::with_connection_event_logging(base_opts)
                 .name("Concordance Event Sourcing")
@@ -171,25 +173,6 @@ impl InterestDeclaration {
         }
     }
 
-    /// Creates a process manager interest
-    pub fn process_manager_for_events(
-        actor_id: &str,
-        entity_name: &str,
-        key: &str,
-        lifetime: ProcessManagerLifetime,
-        ld: LinkDefinition,
-    ) -> InterestDeclaration {
-        InterestDeclaration {
-            actor_id: actor_id.to_string(),
-            entity_name: entity_name.to_string(),
-            key_field: key.to_string(),
-            role: ActorRole::ProcessManager,
-            interest: ActorInterest::ProcessManager(lifetime),
-            interest_constraint: InterestConstraint::Events,
-            link_definition: ld,
-        }
-    }
-
     // per current design, if an entity isn't an aggregate, it will never request commands
     pub fn new(
         actor_id: &str,
@@ -213,13 +196,11 @@ impl InterestDeclaration {
     pub fn from_linkdefinition(
         source: &LinkDefinition,
     ) -> std::result::Result<Vec<InterestDeclaration>, String> {
-        if let Some(raw) = LinkConfigurationRaw::from_linkdef(&source) {
+        if let Some(raw) = LinkConfigurationRaw::from_linkdef(source) {
             let mut interested_parties = vec![];
             let role = ActorRole::from(raw.role);
             if role == ActorRole::Unknown {
-                return Err(format!(
-                    "Unknown declared role for actor. Aborting link set."
-                ));
+                return Err("Unknown declared role for actor. Aborting link set.".to_string());
             }
             if role == ActorRole::Aggregate {
                 interested_parties.push(Self::aggregate_for_commands(
@@ -349,33 +330,31 @@ impl LinkConfigurationRaw {
                     return Some(c);
                 }
             }
+        } else if !REQUIRED_KEYS.iter().all(|k| values.contains_key(*k)) {
+            return None;
         } else {
-            if !REQUIRED_KEYS.iter().all(|k| values.contains_key(*k)) {
-                return None;
-            } else {
-                return Some(LinkConfigurationRaw {
-                    role: values
-                        .get(ROLE_KEY)
-                        .map(|s| s.as_str())
-                        .unwrap_or("")
-                        .to_lowercase(),
-                    interest: values
-                        .get(INTEREST_KEY)
-                        .map(|s| s.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    name: values
-                        .get(ENTITY_NAME_KEY)
-                        .map(|s| s.as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                    key_field: values
-                        .get(KEY_FIELD_KEY)
-                        .map(|s| s.as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                });
-            }
+            return Some(LinkConfigurationRaw {
+                role: values
+                    .get(ROLE_KEY)
+                    .map(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_lowercase(),
+                interest: values
+                    .get(INTEREST_KEY)
+                    .map(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name: values
+                    .get(ENTITY_NAME_KEY)
+                    .map(|s| s.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                key_field: values
+                    .get(KEY_FIELD_KEY)
+                    .map(|s| s.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+            });
         }
         None
     }
@@ -620,13 +599,24 @@ mod test {
             advance: vec!["turn_advanced".to_string(), "turn_skipped".to_string()],
             stop: vec!["game_finished".to_string(), "game_aborted".to_string()],
         };
-        let agg = InterestDeclaration::process_manager_for_events(
+        let raw_interest = serde_json::to_string(&lifetime).unwrap();
+        let agg = InterestDeclaration::new(
             "MXBOB",
             "gameboard",
+            ActorRole::ProcessManager,
             "game_id",
-            lifetime,
+            ActorInterest::from_role_interest(&raw_interest, &ActorRole::ProcessManager)
+                .map_err(|e| e.to_string())
+                .unwrap(),
             LinkDefinition::default(),
         );
+        // let agg = InterestDeclaration::process_manager_for_events(
+        //     "MXBOB",
+        //     "gameboard",
+        //     "game_id",
+        //     lifetime,
+        //     LinkDefinition::default(),
+        // );
         let event_wanted = ConcordanceEvent {
             event_type: "game_started".to_string(),
             stream: "gameboard".to_string(),

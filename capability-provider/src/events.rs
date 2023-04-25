@@ -59,40 +59,38 @@ pub(crate) async fn publish_raw_command(
 
 /// Converts an internal Concordance Event (defined by interface IDL) into a cloud event. This strips the intermediary
 /// envelope from the concordance event type to create a nice and tidy cloud event with JSON payload.
-impl Into<CloudEvent> for ConcordanceEvent {
-    fn into(self) -> CloudEvent {
+impl From<ConcordanceEvent> for CloudEvent {
+    fn from(val: ConcordanceEvent) -> CloudEvent {
         let mut evt = EventBuilderV10::new()
             .id(uuid::Uuid::new_v4().to_string())
-            .ty(self.event_type.to_string())
+            .ty(val.event_type.to_string())
             .source("concordance")
             .time(Utc::now())
-            .extension(EXT_CONCORDANCE_STREAM, self.stream)
+            .extension(EXT_CONCORDANCE_STREAM, val.stream)
             .build()
             .unwrap(); // if we can't serialize this envelope, something's bad enough worth panicking for
 
         // FYI: `payload` was already run through serde_json by the actor that produced the Event
         evt.set_data(
             "application/json",
-            serde_json::from_slice::<serde_json::Value>(&self.payload).unwrap(),
+            serde_json::from_slice::<serde_json::Value>(&val.payload).unwrap(),
         );
 
         evt
     }
 }
 
-/// Creates an internal Concordance Event (defined by interface IDL) from a cloud event. This will reconstitute the
-/// intermediary envelope of the event and put the cloud event's JSON `data()` field into the `payload` field.
-impl Into<ConcordanceEvent> for CloudEvent {
-    fn into(self) -> ConcordanceEvent {
-        let payload = match self.data() {
+impl From<CloudEvent> for ConcordanceEvent {
+    fn from(val: CloudEvent) -> ConcordanceEvent {
+        let payload = match val.data() {
             Some(cloudevents::Data::Json(j)) => serde_json::to_vec(&j).unwrap_or_else(|_| vec![]),
             _ => {
                 vec![]
             }
         };
         ConcordanceEvent {
-            event_type: self.ty().to_owned(),
-            stream: self
+            event_type: val.ty().to_owned(),
+            stream: val
                 .extension(EXT_CONCORDANCE_STREAM)
                 .cloned()
                 .unwrap_or("".to_string().into())

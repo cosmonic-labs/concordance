@@ -134,7 +134,7 @@ impl<T: Debug> Debug for AckableMessage<T> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::{COMMANDS_STREAM_NAME, COMMANDS_STREAM_TOPIC, EVENT_STREAM_NAME};
+    use super::{COMMANDS_STREAM_NAME, EVENT_STREAM_NAME};
     use crate::{consumers::RawCommand, state::STATE_BUCKET_NAME, Result};
 
     pub(crate) async fn create_js_context() -> async_nats::jetstream::Context {

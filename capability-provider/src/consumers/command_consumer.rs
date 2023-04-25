@@ -14,8 +14,6 @@ use std::task::{Context, Poll};
 use tracing::{error, warn};
 
 use crate::natsclient::{AckableMessage, DEFAULT_ACK_TIME};
-#[macro_use]
-use crate::consumers;
 
 use super::{impl_Stream, CreateConsumer};
 
@@ -27,31 +25,11 @@ pub struct RawCommand {
     pub data: serde_json::Value,
 }
 
-impl RawCommand {
-    pub fn sanitize_typename(self) -> RawCommand {
-        RawCommand {
-            command_type: self.command_type.to_snake(),
-            ..self
-        }
-    }
-}
-
 pub struct CommandConsumer {
     stream: MessageStream,
-    interest: InterestDeclaration,
-    name: String,
-    topic: String,
 }
 
 impl CommandConsumer {
-    pub fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    pub fn topic(&self) -> String {
-        self.topic.clone()
-    }
-
     pub fn sanitize_type_name(cmd: RawCommand) -> RawCommand {
         RawCommand {
             command_type: cmd.command_type.to_snake(),
@@ -67,7 +45,7 @@ impl CommandConsumer {
         if interest.role != ActorRole::Aggregate {
             return Err(format!(
                 "Only aggregates are allowed to receive commands, supplied role was {}",
-                interest.role.to_string()
+                interest.role
             )
             .into());
         }
@@ -92,18 +70,12 @@ impl CommandConsumer {
             )
             .await?;
 
-        let info = consumer.cached_info();
         let messages = consumer
             .stream()
             .max_messages_per_batch(1)
             .messages()
             .await?;
-        Ok(CommandConsumer {
-            stream: messages,
-            interest,
-            name: info.name.to_string(),
-            topic: info.config.filter_subject.to_string(),
-        })
+        Ok(CommandConsumer { stream: messages })
     }
 }
 
@@ -145,7 +117,7 @@ mod test {
         let js = create_js_context().await;
         clear_streams(js.clone()).await;
 
-        let client = NatsClient::new(nc.clone(), js.clone());
+        let client = NatsClient::new(js.clone());
         let (_e, c) = client.ensure_streams().await.unwrap();
 
         let cmds = vec![
@@ -209,9 +181,8 @@ mod test {
 
     #[tokio::test]
     async fn command_consumer_fails_for_non_agg() {
-        let nc = async_nats::connect("127.0.0.1").await.unwrap();
         let js = create_js_context().await;
-        let client = NatsClient::new(nc, js.clone());
+        let client = NatsClient::new(js.clone());
         let (_e, c) = client.ensure_streams().await.unwrap();
         let not_an_aggregate = InterestDeclaration {
             actor_id: "bob".to_string(),
@@ -230,9 +201,8 @@ mod test {
 
     #[tokio::test]
     async fn command_consumer_creates_on_happy_path() {
-        let nc = async_nats::connect("127.0.0.1").await.unwrap();
         let js = create_js_context().await;
-        let client = NatsClient::new(nc, js.clone());
+        let client = NatsClient::new(js.clone());
         let (_e, c) = client.ensure_streams().await.unwrap();
 
         let agg = InterestDeclaration::aggregate_for_commands(
@@ -243,10 +213,6 @@ mod test {
         );
         let cc = CommandConsumer::try_new(c, agg).await;
         assert!(cc.is_ok());
-
-        let cc = cc.unwrap();
-        assert_eq!(cc.name(), "AGG_CMD_superbob");
-        assert_eq!(cc.topic(), "cc.commands.superbob");
 
         clear_streams(js).await;
     }

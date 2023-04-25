@@ -1,14 +1,14 @@
 use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use crate::{
-    config::{ActorInterest, InterestDeclaration, ProcessManagerLifetime},
+    config::{ActorInterest, InterestDeclaration},
     consumers::{RawCommand, WorkError},
     events::publish_raw_command,
     eventsourcing::{
         Event as ConcordanceEvent, EventWithState, ProcessManagerAck, ProcessManagerService,
-        ProcessManagerServiceSender, StateAck, StatefulCommand,
+        ProcessManagerServiceSender,
     },
     natsclient::AckableMessage,
     state::EntityState,
@@ -151,7 +151,7 @@ impl ProcessManagerWorker {
         if let Some(state) = ack.state.clone() {
             match self
                 .state
-                .write_state(&self.interest.role, &self.interest.entity_name, &key, state)
+                .write_state(&self.interest.role, &self.interest.entity_name, key, state)
                 .await
             {
                 Ok(_) => {

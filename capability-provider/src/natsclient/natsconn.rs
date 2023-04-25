@@ -1,30 +1,20 @@
 use crate::{
-    config::InterestDeclaration,
     natsclient::{
         COMMANDS_STREAM_NAME, COMMANDS_STREAM_TOPIC, EVENTS_STREAM_TOPIC, EVENT_STREAM_NAME,
     },
     Result,
 };
-use async_nats::jetstream::{
-    self,
-    consumer::pull::{Config as PullConfig, Stream as MessageStream},
-    stream::{Config as StreamConfig, Stream},
-    Context,
-};
-use tracing::{debug, info, instrument};
+use async_nats::jetstream::stream::{Config as StreamConfig, Stream};
+use tracing::{debug, instrument};
 use wasmbus_rpc::error::RpcError;
 
 pub(crate) struct NatsClient {
-    inner: async_nats::Client,
     context: async_nats::jetstream::Context,
 }
 
 impl NatsClient {
-    pub fn new(nc: async_nats::Client, js: async_nats::jetstream::Context) -> NatsClient {
-        NatsClient {
-            inner: nc,
-            context: js,
-        }
+    pub fn new(js: async_nats::jetstream::Context) -> NatsClient {
+        NatsClient { context: js }
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -79,7 +69,7 @@ mod test {
     async fn test_ensure_streams() {
         let nc = async_nats::connect("127.0.0.1").await.unwrap();
         let js = async_nats::jetstream::new(nc.clone());
-        let nc = NatsClient::new(nc, js.clone());
+        let nc = NatsClient::new(js.clone());
 
         let (a, b) = nc.ensure_streams().await.unwrap();
         let (c, d) = nc.ensure_streams().await.unwrap(); // idempotency check
