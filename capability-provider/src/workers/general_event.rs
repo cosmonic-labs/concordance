@@ -1,10 +1,9 @@
-use async_nats::jetstream::{self, stream::Config, Context};
+use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
 use tracing::{debug, error, instrument, trace};
 
 use crate::eventsourcing::{
-    Event as ConcordanceEvent, StatelessAck, StatelessEventHandlerService,
-    StatelessEventHandlerServiceSender,
+    Event as ConcordanceEvent, StatelessEventHandlerService, StatelessEventHandlerServiceSender,
 };
 use crate::{
     config::InterestDeclaration, consumers::WorkError, natsclient::AckableMessage,

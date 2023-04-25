@@ -1,6 +1,6 @@
 use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, instrument, trace, warn};
 use wasmbus_rpc::error::RpcError;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     consumers::WorkError,
     eventsourcing::{
         AggregateService, AggregateServiceSender, Event as ConcordanceEvent, EventWithState,
-        StateAck, StatefulCommand,
+        StateAck,
     },
     natsclient::AckableMessage,
     state::EntityState,
@@ -151,7 +151,7 @@ impl AggregateEventWorker {
         let self_id = &self.interest.actor_id;
         match self
             .state
-            .write_state(&self.interest.role, &self.interest.entity_name, &key, data)
+            .write_state(&self.interest.role, &self.interest.entity_name, key, data)
             .await
         {
             Ok(_) => {
@@ -180,7 +180,7 @@ impl AggregateEventWorker {
         let self_id = &self.interest.actor_id;
         match self
             .state
-            .remove_state(&self.interest.role, &self.interest.entity_name, &key)
+            .remove_state(&self.interest.role, &self.interest.entity_name, key)
             .await
         {
             Ok(_) => {

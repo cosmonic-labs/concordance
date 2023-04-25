@@ -1,10 +1,8 @@
 use crate::config::InterestDeclaration;
 
 use cloudevents::{AttributesWriter, Event as CloudEvent};
-use std::convert::TryFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 use crate::natsclient::{AckableMessage, DEFAULT_ACK_TIME};
 use async_nats::{
@@ -143,7 +141,7 @@ pub(crate) mod test {
         let js = create_js_context().await;
         clear_streams(js.clone()).await;
 
-        let client = NatsClient::new(nc.clone(), js.clone());
+        let client = NatsClient::new(js.clone());
         let (e, _c) = client.ensure_streams().await.unwrap();
 
         let agg = InterestDeclaration::aggregate_for_events(

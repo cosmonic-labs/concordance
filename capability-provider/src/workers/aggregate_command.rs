@@ -1,5 +1,5 @@
 use async_nats::jetstream::Context;
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, instrument, trace};
 
 use crate::{
     config::InterestDeclaration,

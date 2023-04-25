@@ -33,7 +33,7 @@ impl ConcordanceProvider {
             async_nats::jetstream::new(nc.clone())
         };
 
-        let client = NatsClient::new(nc.clone(), js.clone());
+        let client = NatsClient::new(js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let state = EntityState::new_from_context(&js).await?;

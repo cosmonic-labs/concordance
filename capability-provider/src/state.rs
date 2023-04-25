@@ -30,16 +30,15 @@ impl EntityState {
 
         let key = state_key(actor_role, entity_name, key);
 
-        Ok(self
-            .bucket
+        self.bucket
             .put(&key, state.into())
             .await
             .map_err(|err| {
                 let err_msg = format!("Failed to write state @ {key}: {err:?}");
                 error!(error = %err, message = err_msg);
-                RpcError::Nats(err_msg.to_string())
+                RpcError::Nats(err_msg)
             })
-            .map(|_| ())?)
+            .map(|_| ())
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -55,7 +54,7 @@ impl EntityState {
         self.bucket.get(&key).await.map_err(|err| {
             let err_msg = format!("Failed to fetch state @ {key}: {err:?}");
             error!(error = %err, message = err_msg);
-            RpcError::Nats(err_msg.to_string())
+            RpcError::Nats(err_msg)
         })
     }
 
@@ -74,7 +73,7 @@ impl EntityState {
             .map_err(|e| {
                 let err_msg = format!("Failed to delete state @ {key}: {e:?}");
                 error!(error = %e, message = err_msg);
-                RpcError::Nats(err_msg.to_string())
+                RpcError::Nats(err_msg)
             })
             .map(|_| ())
     }

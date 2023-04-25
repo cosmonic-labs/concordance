@@ -39,6 +39,7 @@ pub trait Worker {
 }
 
 /// An error that describes possible work failures when performing actions based on incoming messages
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum WorkError {
     /// A consumer has stopped returning work in its stream and should be restarted    

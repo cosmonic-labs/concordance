@@ -27,6 +27,7 @@ impl ConsumerManager {
         }
     }
 
+    #[allow(unused)]
     pub async fn consumers(&self) -> Vec<InterestDeclaration> {
         let keys = {
             let lock = self.handles.read().await;
@@ -62,17 +63,6 @@ impl ConsumerManager {
             );
             let mut handles = self.handles.write().await;
             handles.insert(i.clone(), handle);
-        }
-        Ok(())
-    }
-
-    pub async fn remove_consumer(
-        &self,
-        interest: &InterestDeclaration,
-    ) -> Result<(), async_nats::Error> {
-        let mut handles = self.handles.write().await;
-        if let Some(_handle) = handles.remove(interest) {
-            // TODO send signal to stop the loop
         }
         Ok(())
     }
@@ -145,7 +135,7 @@ mod test {
         let js = create_js_context().await;
         clear_streams(js.clone()).await;
 
-        let client = NatsClient::new(nc.clone(), js.clone());
+        let client = NatsClient::new(js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let interest = InterestDeclaration::aggregate_for_commands(
@@ -196,7 +186,7 @@ mod test {
         let js = create_js_context().await;
         clear_streams(js.clone()).await;
 
-        let client = NatsClient::new(nc.clone(), js.clone());
+        let client = NatsClient::new(js.clone());
         let (e, c) = client.ensure_streams().await.unwrap();
         let cm = ConsumerManager::new(e, c);
         let interest = InterestDeclaration::aggregate_for_commands(

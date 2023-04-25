@@ -14,4 +14,4 @@ include ./provider.mk
 
 test:
 	killall target/debug/concordance || true
-	RUST_BACKTRACE=1 cargo test -- --nocapture
+	RUST_BACKTRACE=1 cargo test -- --test-threads=1 --nocapture

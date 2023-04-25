@@ -1,4 +1,4 @@
-use async_nats::jetstream::{self, stream::Config, Context};
+use async_nats::jetstream::Context;
 use cloudevents::Event as CloudEvent;
 use tracing::debug;
 
@@ -14,22 +14,6 @@ pub struct ProjectorEventWorker {
     pub context: Context,
     pub interest: InterestDeclaration,
     pub state: EntityState,
-}
-
-impl ProjectorEventWorker {
-    pub fn new(
-        nc: async_nats::Client,
-        context: Context,
-        interest: InterestDeclaration,
-        state: EntityState,
-    ) -> Self {
-        ProjectorEventWorker {
-            nc,
-            context,
-            interest,
-            state,
-        }
-    }
 }
 
 #[async_trait::async_trait]
