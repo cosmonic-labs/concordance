@@ -7,6 +7,7 @@ trigger:
       - "concordance-provider-v*"
   paths:
     include:
+      - "interface/"
       - "capability-provider/"
       - ".ci/provider.yml"
 pr:
@@ -15,6 +16,7 @@ pr:
       - "main"
   paths:
     include:
+      - "interface/"
       - "capability-provider/"
       - ".ci/provider.yml"
 
@@ -64,7 +66,7 @@ stages:
                 - rustfmt
           - template: steps/rust-caching.yml@public-templates
             parameters:
-              projectName: concordance-es-provider
+              projectName: concordance
               workingDirectory: $(working-directory)
 
           # No tests needed here as they are all integration tests. So just run a check and clippy
@@ -84,7 +86,7 @@ stages:
           - template: steps/rust-setup.yml@public-templates
           - template: steps/rust-caching.yml@public-templates
             parameters:
-              projectName: concordance-es-provider
+              projectName: concordance
               workingDirectory: $(working-directory)
               cacheTarget: false
 
@@ -107,7 +109,7 @@ stages:
           - template: steps/oci-release.yml@public-templates
             parameters:
               artifactPath: $(working-directory)/build/$(oci-repository).par.gz
-              ociUrl: wasmcloud.azurecr.io
+              ociUrl: cosmonic.azurecr.io
               ociRepository: $(oci-repository)
               ociVersion: $(oci-version)
               ociUsername: $(PUSH_USER)
