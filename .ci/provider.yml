@@ -99,6 +99,7 @@ stages:
             env:
               WASH_ISSUER_KEY: $(WASH_ISSUER_KEY)
               WASH_SUBJECT_KEY: $(WASH_SUBJECT_KEY)
+              XDG_CACHE_HOME: /tmp
 
           - bash: |
               echo "##vso[task.setvariable variable=oci-repository]$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name')"
