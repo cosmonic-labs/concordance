@@ -1,5 +1,3 @@
-[build.env]
-passthrough = ["XDG_CACHE_HOME"]
 
 [target.armv7-unknown-linux-gnueabihf]
 image = "wasmcloud/cross:armv7-unknown-linux-gnueabihf"
@@ -15,3 +13,8 @@ image = "wasmcloud/cross:aarch64-apple-darwin"
 
 [target.x86_64-unknown-linux-gnu]
 image = "wasmcloud/cross:x86_64-unknown-linux-gnu"
+
+[build.env]
+passthrough = [
+    "XDG_CACHE_HOME",
+]
