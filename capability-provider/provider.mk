@@ -42,9 +42,9 @@ par_targets ?= \
 	x86_64-apple-darwin \
 	aarch64-unknown-linux-gnu \
 	aarch64-apple-darwin \
-	armv7-unknown-linux-gnueabihf \
-	x86_64-pc-windows-gnu \
-	x86_64-pc-windows-msvc
+	armv7-unknown-linux-gnueabihf 
+#	x86_64-pc-windows-gnu \
+#	x86_64-pc-windows-msvc
 
 # Lookup table from rust target triple to wasmcloud architecture doubles
 # Thanks to https://stackoverflow.com/a/40919906 for the pointer to
