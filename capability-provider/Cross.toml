@@ -16,4 +16,4 @@ image = "wasmcloud/cross:x86_64-unknown-linux-gnu"
 
 [build.env]
 passthrough = ["XDG_CACHE_HOME"]
-volumes = ["XDG_CACHE_HOME, REPOSITORY_PATH"]
+volumes = ["XDG_CACHE_HOME", "REPOSITORY_PATH"]
