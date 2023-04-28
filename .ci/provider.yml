@@ -1,24 +1,24 @@
 trigger:
   branches:
     include:
-      - "main"
+      - 'main'
   tags:
     include:
-      - "concordance-provider-v*"
+      - 'concordance-provider-v*'
   paths:
     include:
-      - "interface/"
-      - "capability-provider/"
-      - ".ci/provider.yml"
+      - 'interface/'
+      - 'capability-provider/'
+      - '.ci/provider.yml'
 pr:
   branches:
     include:
-      - "main"
+      - 'main'
   paths:
     include:
-      - "interface/"
-      - "capability-provider/"
-      - ".ci/provider.yml"
+      - 'interface/'
+      - 'capability-provider/'
+      - '.ci/provider.yml'
 
 pool:
   vmImage: ubuntu-latest
@@ -31,8 +31,8 @@ resources:
       name: cosmonic/ado-common
 
 variables:
-  - group: "Common Rust Vars"
-  - group: "Cosmonic Release Keys"
+  - group: 'Common Rust Vars'
+  - group: 'Cosmonic Release Keys'
   - name: working-directory
     value: ./capability-provider
   - name: WASH_ISSUER_KEY
@@ -72,13 +72,13 @@ stages:
           # No tests needed here as they are all integration tests. So just run a check and clippy
           - template: steps/rust-fmt-clippy.yml@public-templates
             parameters:
-              workingDirectory: $(working-directory)     
+              workingDirectory: $(working-directory)
 
   - stage: release
     dependsOn:
       - build_and_check
     # Only do this stage if the ref is a tag and the previous stage succeeded
-    condition: and(succeeded('build_and_check'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
+    #condition: and(succeeded('build_and_check'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     jobs:
       - job: release
         steps:
@@ -93,7 +93,7 @@ stages:
           - bash: cargo install --git https://github.com/brooksmtownsend/cross --branch add-darwin-target --force
             displayName: Install Cross
 
-          - run: |
+          - bash: |
               mkdir -p ${HOME}/.cache
               make par-full
             workingDirectory: $(working-directory)
@@ -102,6 +102,7 @@ stages:
               WASH_ISSUER_KEY: $(WASH_ISSUER_KEY)
               WASH_SUBJECT_KEY: $(WASH_SUBJECT_KEY)
               XDG_CACHE_HOME: ${HOME}/.cache
+              REPOSITORY_PATH: $(Build.Repository.LocalPath)
 
           - bash: |
               echo "##vso[task.setvariable variable=oci-repository]$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name')"
