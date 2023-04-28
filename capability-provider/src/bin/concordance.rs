@@ -1,4 +1,4 @@
-use concordance_es_provider::{BaseConfiguration, ConcordanceProvider};
+use concordance::{BaseConfiguration, ConcordanceProvider};
 use tracing::{info, warn};
 use wasmbus_rpc::provider::prelude::*;
 
