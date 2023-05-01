@@ -78,7 +78,7 @@ stages:
     dependsOn:
       - build_and_check
     # Only do this stage if the ref is a tag and the previous stage succeeded
-    #condition: and(succeeded('build_and_check'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
+    condition: and(succeeded('build_and_check'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     jobs:
       - job: release
         steps:
