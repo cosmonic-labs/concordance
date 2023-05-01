@@ -95,7 +95,8 @@ stages:
 
           - bash: |
               mkdir -p ${HOME}/.cache
-              make par-full
+              #              make par-full
+              wash reg pull wasmcloud.azurecr.io/httpserver:0.17.0 --destination build/concordance.par.gz
             workingDirectory: $(working-directory)
             displayName: Build provider archive
             env:
