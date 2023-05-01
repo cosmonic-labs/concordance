@@ -43,8 +43,7 @@ par_targets ?= \
 	aarch64-unknown-linux-gnu \
 	aarch64-apple-darwin \
 	armv7-unknown-linux-gnueabihf \
-	x86_64-pc-windows-gnu \
-	x86_64-pc-windows-msvc
+	x86_64-pc-windows-gnu 
 
 # Lookup table from rust target triple to wasmcloud architecture doubles
 # Thanks to https://stackoverflow.com/a/40919906 for the pointer to
@@ -108,7 +107,7 @@ par-full: $(dest_par) $(bin_targets)
 		if [ $$target = "x86_64-pc-windows-gnu" ]; then \
 			target_dest=$$target_dest.exe;  \
 		fi; \
-			par_arch=`echo -n $$target | sed -E 's/([^-]+)-([^-]+)-([^-]+)(-gnu.*)?/\1-\3/' | sed 's/darwin/macos/'`; \
+			par_arch=`echo $$target | sed -E 's/([^-]+)-([^-]+)-([^-]+)(-gnu.*)?/\1-\3/' | sed 's/darwin/macos/'`; \
 		echo building $$par_arch; \
 		if [ $$target_dest != $(cross_target0) ] && [ -f $$target_dest ]; then \
 				$(WASH) par insert --arch $$par_arch --binary $$target_dest $(dest_par); \
@@ -130,7 +129,7 @@ target/debug/$(bin_name): $(RUST_DEPS)
 # cross-compile target, remove intermediate build artifacts before build
 target/%/release/$(bin_name): $(RUST_DEPS)
 	mkdir -p ${HOME}/.cache
-	tname=`echo -n $@ | sed -E 's_target/([^/]+)/release.*$$_\1_'` &&\
+	tname=`echo $@ | sed -E 's_target/([^/]+)/release.*$$_\1_'` &&\
 	rm -rf target/release/build &&\
 	rm -rf target/release/deps &&\
 	XDG_CACHE_HOME=${HOME}/.cache cross build --release --target $$tname

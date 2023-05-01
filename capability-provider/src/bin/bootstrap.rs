@@ -1,4 +1,4 @@
-use concordance_es_provider::{BaseConfiguration, ConcordanceProvider};
+use concordance::{BaseConfiguration, ConcordanceProvider};
 use wasmbus_rpc::{core::HostData, provider::prelude::*, wascap::prelude::KeyPair};
 
 #[tokio::main]

@@ -72,7 +72,7 @@ stages:
           # No tests needed here as they are all integration tests. So just run a check and clippy
           - template: steps/rust-fmt-clippy.yml@public-templates
             parameters:
-              workingDirectory: $(working-directory)     
+              workingDirectory: $(working-directory)
 
   - stage: release
     dependsOn:
@@ -93,13 +93,16 @@ stages:
           - bash: cargo install --git https://github.com/brooksmtownsend/cross --branch add-darwin-target --force
             displayName: Install Cross
 
-          - bash: make par-full
+          - bash: |
+              mkdir -p ${HOME}/.cache
+              make par-full
             workingDirectory: $(working-directory)
             displayName: Build provider archive
             env:
               WASH_ISSUER_KEY: $(WASH_ISSUER_KEY)
               WASH_SUBJECT_KEY: $(WASH_SUBJECT_KEY)
-              XDG_CACHE_HOME: /tmp
+              XDG_CACHE_HOME: ${HOME}/.cache
+              REPOSITORY_PATH: $(Build.Repository.LocalPath)
 
           - bash: |
               echo "##vso[task.setvariable variable=oci-repository]$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name')"

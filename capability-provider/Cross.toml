@@ -1,3 +1,4 @@
+
 [target.armv7-unknown-linux-gnueabihf]
 image = "wasmcloud/cross:armv7-unknown-linux-gnueabihf"
 
@@ -14,6 +15,5 @@ image = "wasmcloud/cross:aarch64-apple-darwin"
 image = "wasmcloud/cross:x86_64-unknown-linux-gnu"
 
 [build.env]
-passthrough = [
-    "XDG_CACHE_HOME",
-]
+passthrough = ["XDG_CACHE_HOME"]
+volumes = ["XDG_CACHE_HOME", "REPOSITORY_PATH"]

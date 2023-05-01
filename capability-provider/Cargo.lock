@@ -407,7 +407,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "concordance-es-provider"
+name = "concordance"
 version = "0.1.0"
 dependencies = [
  "anyhow",
