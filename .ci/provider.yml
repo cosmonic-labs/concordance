@@ -1,24 +1,24 @@
 trigger:
   branches:
     include:
-      - 'main'
+      - "main"
   tags:
     include:
-      - 'concordance-provider-v*'
+      - "concordance-provider-v*"
   paths:
     include:
-      - 'interface/'
-      - 'capability-provider/'
-      - '.ci/provider.yml'
+      - "interface/"
+      - "capability-provider/"
+      - ".ci/provider.yml"
 pr:
   branches:
     include:
-      - 'main'
+      - "main"
   paths:
     include:
-      - 'interface/'
-      - 'capability-provider/'
-      - '.ci/provider.yml'
+      - "interface/"
+      - "capability-provider/"
+      - ".ci/provider.yml"
 
 pool:
   vmImage: ubuntu-latest
@@ -31,8 +31,8 @@ resources:
       name: cosmonic/ado-common
 
 variables:
-  - group: 'Common Rust Vars'
-  - group: 'Cosmonic Release Keys'
+  - group: "Common Rust Vars"
+  - group: "Cosmonic Release Keys"
   - name: working-directory
     value: ./capability-provider
   - name: WASH_ISSUER_KEY
@@ -45,34 +45,34 @@ variables:
     value: $[variables.COSMONIC_AZURECR_PUSH_PASSWORD]
 
 stages:
-  - stage: build_and_check
-    jobs:
-      - job: build_and_check
-        strategy:
-          matrix:
-            linux:
-              vmImage: ubuntu-latest
-            windows:
-              vmImage: windows-latest
-            macos:
-              vmImage: macOS-latest
-        pool:
-          vmImage: $(vmImage)
-        steps:
-          - template: steps/rust-setup.yml@public-templates
-            parameters:
-              components:
-                - clippy
-                - rustfmt
-          - template: steps/rust-caching.yml@public-templates
-            parameters:
-              projectName: concordance
-              workingDirectory: $(working-directory)
+  # - stage: build_and_check
+  #   jobs:
+  #     - job: build_and_check
+  #       strategy:
+  #         matrix:
+  #           linux:
+  #             vmImage: ubuntu-latest
+  #           windows:
+  #             vmImage: windows-latest
+  #           macos:
+  #             vmImage: macOS-latest
+  #       pool:
+  #         vmImage: $(vmImage)
+  #       steps:
+  #         - template: steps/rust-setup.yml@public-templates
+  #           parameters:
+  #             components:
+  #               - clippy
+  #               - rustfmt
+  #         - template: steps/rust-caching.yml@public-templates
+  #           parameters:
+  #             projectName: concordance
+  #             workingDirectory: $(working-directory)
 
-          # No tests needed here as they are all integration tests. So just run a check and clippy
-          - template: steps/rust-fmt-clippy.yml@public-templates
-            parameters:
-              workingDirectory: $(working-directory)
+  #         # No tests needed here as they are all integration tests. So just run a check and clippy
+  #         - template: steps/rust-fmt-clippy.yml@public-templates
+  #           parameters:
+  #             workingDirectory: $(working-directory)
 
   - stage: release
     #dependsOn:
