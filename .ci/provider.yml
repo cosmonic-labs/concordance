@@ -75,8 +75,8 @@ stages:
               workingDirectory: $(working-directory)
 
   - stage: release
-    dependsOn:
-      - build_and_check
+    #dependsOn:
+    #  - build_and_check
     # Only do this stage if the ref is a tag and the previous stage succeeded
     #condition: and(succeeded('build_and_check'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     jobs:
@@ -96,6 +96,7 @@ stages:
           - bash: |
               mkdir -p ${HOME}/.cache
               #              make par-full
+              mkdir -p build
               wash reg pull wasmcloud.azurecr.io/httpserver:0.17.0 --destination build/concordance.par.gz
             workingDirectory: $(working-directory)
             displayName: Build provider archive
