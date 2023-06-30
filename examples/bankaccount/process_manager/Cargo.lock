@@ -215,6 +215,7 @@ dependencies = [
 name = "bankaccount-model"
 version = "0.1.0"
 dependencies = [
+ "concordance-gen",
  "serde",
  "serde_json",
 ]
