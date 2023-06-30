@@ -3,6 +3,7 @@
 path = "../../../interface/"
 files = [
     "eventsourcing.smithy",
+    "process_manager.smithy",
     "aggregate.smithy"
 ]
 

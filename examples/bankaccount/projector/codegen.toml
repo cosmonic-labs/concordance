@@ -3,7 +3,8 @@
 path = "../../../interface/"
 files = [
     "eventsourcing.smithy",
-    "aggregate.smithy"
+    "aggregate.smithy",
+    "process_manager.smithy"
 ]
 
 [[models]]

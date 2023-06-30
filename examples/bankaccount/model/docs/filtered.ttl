@@ -1,0 +1,80 @@
+# Bank Account Example
+# Specification
+
+# Shape Rules
+# While there may be multiple logical ways to declare relationships, the following
+# is the mandatory way to describe relationships such that the documentation and code
+# generation tools can accurately process the specification.
+#
+# command -> in -> aggregate
+# aggregate -> out -> event
+# event -> in -> projector
+# event -> in -> process-manager
+# pm -> out -> event
+# (entity) -> doc -> "..."
+# (entity) -> desc -> "..."
+# (entity) -> spec -> "..."
+#
+# The name of each entity is value of the node ID minus its URI prefix
+
+@base <http://cosmonic.com/es/> .
+@prefix agg: <aggregate/> .
+@prefix proj: <projector/> .
+@prefix pm: <process-manager/> .
+@prefix n: <notifier/> .
+@prefix p: <predicate/> .
+@prefix e: <event/> .
+@prefix c: <command/> .
+
+# Bank Account
+
+c:CreateAccount p:in agg:bankaccount .
+c:ReserveFunds p:in agg:bankaccount .
+c:ReleaseReservedFunds p:in agg:bankaccount .
+c:WithdrawFunds p:in agg:bankaccount .
+c:DepositFunds p:in agg:bankaccount .
+c:RequestWireTransfer p:in agg:bankaccount .
+c:InitiateInterbankTransfer p:in agg:bankaccount .
+c:WithdrawReservedFunds p:in agg:bankaccount .
+
+
+agg:bankaccount p:out e:AccountCreated .
+agg:bankaccount p:out e:WireFundsReserved .
+agg:bankaccount p:out e:FundsWithdrawn .
+agg:bankaccount p:out e:WireFundsReleased .
+agg:bankaccount p:out e:InterbankTransferInitiated .
+agg:bankaccount p:out e:WireTransferRequested .
+agg:bankaccount p:out e:FundsDeposited .
+agg:bankaccount p:out e:ReservedFundsWithdrawn .
+
+e:AccountCreated p:in agg:bankaccount .
+e:WireFundsReserved p:in agg:bankaccount .
+e:FundsWithdrawn p:in agg:bankaccount .
+e:WireFundsReleased p:in agg:bankaccount .
+e:InterbankTransferInitiated p:in agg:bankaccount .
+e:WireTransferRequested p:in agg:bankaccount .
+e:FundsDeposited p:in agg:bankaccount .
+e:ReservedFundsWithdrawn p:in agg:bankaccount .
+
+e:WireTransferRequested p:in pm:bankaccount .
+e:WireFundsReserved p:in pm:bankaccount .
+e:InterbankTransferCompleted p:in pm:bankaccount .
+e:InterbankTransferFailed p:in pm:bankaccount .
+e:InterbankTransferInitiated p:in pm:bankaccount .
+
+pm:bankaccount p:out c:ReserveFunds .
+pm:bankaccount p:out c:InitiateInterbankTransfer .
+pm:bankaccount p:out c:WithdrawReservedFunds .
+pm:bankaccount p:out c:ReleaseReservedFunds .
+
+e:AccountCreated p:in proj:bankaccount .
+e:WireFundsReserved p:in proj:bankaccount .
+e:FundsWithdrawn p:in proj:bankaccount .
+e:WireFundsReleased p:in proj:bankaccount .
+e:InterbankTransferInitiated p:in proj:bankaccount .
+e:WireTransferRequested p:in proj:bankaccount .
+e:FundsDeposited p:in proj:bankaccount .
+e:ReservedFundsWithdrawn p:in proj:bankaccount .
+
+
+

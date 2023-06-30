@@ -1,36 +1,55 @@
 use serde::{Deserialize, Serialize};
 
-pub const ACCOUNT_CREATED_TYPE: &str = "account_created";
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AccountCreatedEvent {
+pub struct AccountCreated {
     pub initial_balance: u32,
     pub account_number: String,
     pub min_balance: u32,
     pub customer_id: String,
 }
 
-pub const FUNDS_WITHDRAWN_EVENT_TYPE: &str = "funds_withdrawn";
+impl AccountCreated {
+    pub const TYPE: &str = "account_created";
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FundsWithdrawnEvent {
+pub struct FundsWithdrawn {
     pub account_number: String,
     pub amount: u32,
     pub customer_id: String,
     pub note: String,
 }
 
-pub const FUNDS_DEPOSITED_EVENT_TYPE: &str = "funds_deposited";
+impl FundsWithdrawn {
+    pub const TYPE: &str = "funds_withdrawn";
+}
+
+/// After a wire transfer is complete, reserved funds are withdrawn
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FundsDepositedEvent {
+pub struct ReservedFundsWithdrawn {
+    pub account_number: String,
+    pub wire_transfer_id: String,
+    pub amount: u32,
+}
+
+impl ReservedFundsWithdrawn {
+    pub const TYPE: &str = "reserved_funds_withdrawn";
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FundsDeposited {
     pub account_number: String,
     pub amount: u32,
     pub customer_id: String,
     pub note: String,
+}
+
+impl FundsDeposited {
+    pub const TYPE: &str = "funds_deposited";
 }
 
 /* Bank Account Interbank Xfer Process Manager */
 
-pub const WIRE_TRANSFER_REQUESTED_EVENT_TYPE: &str = "wire_transfer_requested";
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireTransferRequested {
     pub wire_transfer_id: String,
@@ -41,7 +60,10 @@ pub struct WireTransferRequested {
     pub target_account_number: String,
 }
 
-pub const WIRE_FUNDS_RESERVED_EVENT_TYPE: &str = "wire_funds_reserved";
+impl WireTransferRequested {
+    pub const TYPE: &str = "wire_transfer_requested";
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireFundsReserved {
     pub account_number: String,
@@ -50,7 +72,10 @@ pub struct WireFundsReserved {
     pub amount: u32,
 }
 
-pub const WIRE_FUNDS_RELEASED_EVENT_TYPE: &str = "wire_funds_released";
+impl WireFundsReserved {
+    pub const TYPE: &str = "wire_funds_reserved";
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WireFundsReleased {
     pub account_number: String,
@@ -58,7 +83,10 @@ pub struct WireFundsReleased {
     pub amount: u32,
 }
 
-pub const INTERBANK_TRANSFER_INITIATED_EVENT_TYPE: &str = "interbank_transfer_initiated";
+impl WireFundsReleased {
+    pub const TYPE: &str = "wire_funds_released";
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InterbankTransferInitiated {
     pub account_number: String,
@@ -67,9 +95,12 @@ pub struct InterbankTransferInitiated {
     pub target_account_number: String,
 }
 
+impl InterbankTransferInitiated {
+    pub const TYPE: &str = "interbank_transfer_initiated";
+}
+
 /* Events from the interbank gateway */
 
-pub const INTERBANK_TRANSFER_COMPLETED_EVENT_TYPE: &str = "interbank_transfer_completed";
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InterbankTransferCompleted {
     pub wire_transfer_id: String,
@@ -77,10 +108,17 @@ pub struct InterbankTransferCompleted {
     pub gateway_client_id: String,
 }
 
-pub const INTERBANK_TRANSFER_FAILED_EVENT_TYPE: &str = "interbank_transfer_failed";
+impl InterbankTransferCompleted {
+    pub const TYPE: &str = "interbank_transfer_completed";
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InterbankTransferFailed {
     pub wire_transfer_id: String,
     pub note: String,
     pub gateway_client_id: String,
+}
+
+impl InterbankTransferFailed {
+    pub const TYPE: &str = "interbank_transfer_failed";
 }
