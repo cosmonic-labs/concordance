@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod commands;
 pub mod events;
+pub mod state;
 
 pub fn deserialize<'de, T: Deserialize<'de>>(
     buf: &'de [u8],

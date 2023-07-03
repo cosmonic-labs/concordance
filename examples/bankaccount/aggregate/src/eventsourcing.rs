@@ -22,6 +22,56 @@ use wasmbus_rpc::{
 #[allow(dead_code)]
 pub const SMITHY_VERSION: &str = "1.0";
 
+pub type CommandList = Vec<OutputCommand>;
+
+// Encode CommandList as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_command_list<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &CommandList,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.array(val.len() as u64)?;
+    for item in val.iter() {
+        encode_output_command(e, item)?;
+    }
+    Ok(())
+}
+
+// Decode CommandList from cbor input stream
+#[doc(hidden)]
+pub fn decode_command_list(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<CommandList, RpcError> {
+    let __result = {
+        if let Some(n) = d.array()? {
+            let mut arr: Vec<OutputCommand> = Vec::with_capacity(n as usize);
+            for _ in 0..(n as usize) {
+                arr.push(decode_output_command(d).map_err(|e| {
+                    format!("decoding 'com.cosmonic.eventsourcing#OutputCommand': {}", e)
+                })?)
+            }
+            arr
+        } else {
+            // indefinite array
+            let mut arr: Vec<OutputCommand> = Vec::new();
+            loop {
+                match d.datatype() {
+                    Err(_) => break,
+                    Ok(wasmbus_rpc::cbor::Type::Break) => break,
+                    Ok(_) => arr.push(decode_output_command(d).map_err(|e| {
+                        format!("decoding 'com.cosmonic.eventsourcing#OutputCommand': {}", e)
+                    })?),
+                }
+            }
+            arr
+        }
+    };
+    Ok(__result)
+}
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Event {
     #[serde(rename = "eventType")]
@@ -265,6 +315,225 @@ pub fn decode_event_with_state(
             } else {
                 return Err(RpcError::Deser(
                     "missing field EventWithState.event (#0)".to_string(),
+                ));
+            },
+            state: state.unwrap(),
+        }
+    };
+    Ok(__result)
+}
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OutputCommand {
+    #[serde(default)]
+    pub aggregate_key: String,
+    #[serde(default)]
+    pub aggregate_stream: String,
+    #[serde(rename = "commandType")]
+    #[serde(default)]
+    pub command_type: String,
+    #[serde(rename = "jsonPayload")]
+    #[serde(with = "serde_bytes")]
+    #[serde(default)]
+    pub json_payload: Vec<u8>,
+}
+
+// Encode OutputCommand as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_output_command<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &OutputCommand,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(4)?;
+    e.str("aggregate_key")?;
+    e.str(&val.aggregate_key)?;
+    e.str("aggregate_stream")?;
+    e.str(&val.aggregate_stream)?;
+    e.str("commandType")?;
+    e.str(&val.command_type)?;
+    e.str("jsonPayload")?;
+    e.bytes(&val.json_payload)?;
+    Ok(())
+}
+
+// Decode OutputCommand from cbor input stream
+#[doc(hidden)]
+pub fn decode_output_command(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<OutputCommand, RpcError> {
+    let __result = {
+        let mut aggregate_key: Option<String> = None;
+        let mut aggregate_stream: Option<String> = None;
+        let mut command_type: Option<String> = None;
+        let mut json_payload: Option<Vec<u8>> = None;
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct OutputCommand, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => aggregate_key = Some(d.str()?.to_string()),
+                    1 => aggregate_stream = Some(d.str()?.to_string()),
+                    2 => command_type = Some(d.str()?.to_string()),
+                    3 => json_payload = Some(d.bytes()?.to_vec()),
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "aggregate_key" => aggregate_key = Some(d.str()?.to_string()),
+                    "aggregate_stream" => aggregate_stream = Some(d.str()?.to_string()),
+                    "commandType" => command_type = Some(d.str()?.to_string()),
+                    "jsonPayload" => json_payload = Some(d.bytes()?.to_vec()),
+                    _ => d.skip()?,
+                }
+            }
+        }
+        OutputCommand {
+            aggregate_key: if let Some(__x) = aggregate_key {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.aggregate_key (#0)".to_string(),
+                ));
+            },
+
+            aggregate_stream: if let Some(__x) = aggregate_stream {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.aggregate_stream (#1)".to_string(),
+                ));
+            },
+
+            command_type: if let Some(__x) = command_type {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.command_type (#2)".to_string(),
+                ));
+            },
+
+            json_payload: if let Some(__x) = json_payload {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field OutputCommand.json_payload (#3)".to_string(),
+                ));
+            },
+        }
+    };
+    Ok(__result)
+}
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ProcessManagerAck {
+    pub commands: CommandList,
+    #[serde(with = "serde_bytes")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Vec<u8>>,
+}
+
+// Encode ProcessManagerAck as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_process_manager_ack<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &ProcessManagerAck,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(2)?;
+    e.str("commands")?;
+    encode_command_list(e, &val.commands)?;
+    if let Some(val) = val.state.as_ref() {
+        e.str("state")?;
+        e.bytes(val)?;
+    } else {
+        e.null()?;
+    }
+    Ok(())
+}
+
+// Decode ProcessManagerAck from cbor input stream
+#[doc(hidden)]
+pub fn decode_process_manager_ack(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<ProcessManagerAck, RpcError> {
+    let __result = {
+        let mut commands: Option<CommandList> = None;
+        let mut state: Option<Option<Vec<u8>>> = Some(None);
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct ProcessManagerAck, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        commands = Some(decode_command_list(d).map_err(|e| {
+                            format!("decoding 'com.cosmonic.eventsourcing#CommandList': {}", e)
+                        })?)
+                    }
+                    1 => {
+                        state = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bytes()?.to_vec()))
+                        }
+                    }
+
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "commands" => {
+                        commands = Some(decode_command_list(d).map_err(|e| {
+                            format!("decoding 'com.cosmonic.eventsourcing#CommandList': {}", e)
+                        })?)
+                    }
+                    "state" => {
+                        state = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bytes()?.to_vec()))
+                        }
+                    }
+                    _ => d.skip()?,
+                }
+            }
+        }
+        ProcessManagerAck {
+            commands: if let Some(__x) = commands {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field ProcessManagerAck.commands (#0)".to_string(),
                 ));
             },
             state: state.unwrap(),
@@ -756,6 +1025,112 @@ impl<T: Transport + std::marker::Sync + std::marker::Send> AggregateService
 
         let value: StateAck = wasmbus_rpc::common::deserialize(&resp)
             .map_err(|e| RpcError::Deser(format!("'{}': StateAck", e)))?;
+        Ok(value)
+    }
+}
+
+/// wasmbus.contractId: cosmonic:eventsourcing
+/// wasmbus.actorReceive
+#[async_trait]
+pub trait ProcessManagerService {
+    /// returns the capability contract id for this interface
+    fn contract_id() -> &'static str {
+        "cosmonic:eventsourcing"
+    }
+    async fn handle_event(
+        &self,
+        ctx: &Context,
+        arg: &EventWithState,
+    ) -> RpcResult<ProcessManagerAck>;
+}
+
+/// ProcessManagerServiceReceiver receives messages defined in the ProcessManagerService service trait
+#[doc(hidden)]
+#[async_trait]
+pub trait ProcessManagerServiceReceiver: MessageDispatch + ProcessManagerService {
+    async fn dispatch(&self, ctx: &Context, message: Message<'_>) -> Result<Vec<u8>, RpcError> {
+        match message.method {
+            "HandleEvent" => {
+                let value: EventWithState = wasmbus_rpc::common::deserialize(&message.arg)
+                    .map_err(|e| RpcError::Deser(format!("'EventWithState': {}", e)))?;
+
+                let resp = ProcessManagerService::handle_event(self, ctx, &value).await?;
+                let buf = wasmbus_rpc::common::serialize(&resp)?;
+
+                Ok(buf)
+            }
+            _ => Err(RpcError::MethodNotHandled(format!(
+                "ProcessManagerService::{}",
+                message.method
+            ))),
+        }
+    }
+}
+
+/// ProcessManagerServiceSender sends messages to a ProcessManagerService service
+/// client for sending ProcessManagerService messages
+#[derive(Clone, Debug)]
+pub struct ProcessManagerServiceSender<T: Transport> {
+    transport: T,
+}
+
+impl<T: Transport> ProcessManagerServiceSender<T> {
+    /// Constructs a ProcessManagerServiceSender with the specified transport
+    pub fn via(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub fn set_timeout(&self, interval: std::time::Duration) {
+        self.transport.set_timeout(interval);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<'send> ProcessManagerServiceSender<wasmbus_rpc::provider::ProviderTransport<'send>> {
+    /// Constructs a Sender using an actor's LinkDefinition,
+    /// Uses the provider's HostBridge for rpc
+    pub fn for_actor(ld: &'send wasmbus_rpc::core::LinkDefinition) -> Self {
+        Self {
+            transport: wasmbus_rpc::provider::ProviderTransport::new(ld, None),
+        }
+    }
+}
+#[cfg(target_arch = "wasm32")]
+impl ProcessManagerServiceSender<wasmbus_rpc::actor::prelude::WasmHost> {
+    /// Constructs a client for actor-to-actor messaging
+    /// using the recipient actor's public key
+    pub fn to_actor(actor_id: &str) -> Self {
+        let transport =
+            wasmbus_rpc::actor::prelude::WasmHost::to_actor(actor_id.to_string()).unwrap();
+        Self { transport }
+    }
+}
+#[async_trait]
+impl<T: Transport + std::marker::Sync + std::marker::Send> ProcessManagerService
+    for ProcessManagerServiceSender<T>
+{
+    #[allow(unused)]
+    async fn handle_event(
+        &self,
+        ctx: &Context,
+        arg: &EventWithState,
+    ) -> RpcResult<ProcessManagerAck> {
+        let buf = wasmbus_rpc::common::serialize(arg)?;
+
+        let resp = self
+            .transport
+            .send(
+                ctx,
+                Message {
+                    method: "ProcessManagerService.HandleEvent",
+                    arg: Cow::Borrowed(&buf),
+                },
+                None,
+            )
+            .await?;
+
+        let value: ProcessManagerAck = wasmbus_rpc::common::deserialize(&resp)
+            .map_err(|e| RpcError::Deser(format!("'{}': ProcessManagerAck", e)))?;
         Ok(value)
     }
 }
