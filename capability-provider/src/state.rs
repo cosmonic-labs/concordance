@@ -51,11 +51,15 @@ impl EntityState {
         trace!("Fetching state");
         let key = state_key(actor_role, entity_name, key);
 
-        self.bucket.get(&key).await.map_err(|err| {
-            let err_msg = format!("Failed to fetch state @ {key}: {err:?}");
-            error!(error = %err, message = err_msg);
-            RpcError::Nats(err_msg)
-        })
+        self.bucket
+            .get(&key)
+            .await
+            .map_err(|err| {
+                let err_msg = format!("Failed to fetch state @ {key}: {err:?}");
+                error!(error = %err, message = err_msg);
+                RpcError::Nats(err_msg)
+            })
+            .map(|b| b.map(|v| v.to_vec()))
     }
 
     #[instrument(level = "debug", skip(self))]

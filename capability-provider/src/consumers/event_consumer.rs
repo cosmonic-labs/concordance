@@ -63,7 +63,7 @@ impl EventConsumer {
         let info = consumer.cached_info();
         let messages = consumer
             .stream()
-            .max_messages_per_batch(1)
+            .max_messages_per_batch(interest.extract_max_messages_per_batch())
             .messages()
             .await?;
         Ok(EventConsumer {

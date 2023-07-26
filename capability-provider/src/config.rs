@@ -19,6 +19,7 @@ const ROLE_KEY: &str = "role";
 const INTEREST_KEY: &str = "interest";
 const ENTITY_NAME_KEY: &str = "name";
 const KEY_FIELD_KEY: &str = "key";
+const MAX_MESSAGES_PER_BATCH_KEY: &str = "max_messages_per_batch";
 
 const REQUIRED_KEYS: &[&str] = &["role", "interest", "name"];
 
@@ -26,6 +27,8 @@ const ROLE_AGGREGATE: &str = "aggregate";
 const ROLE_PROJECTOR: &str = "projector";
 const ROLE_PROCESS_MANAGER: &str = "process_manager";
 const ROLE_NOTIFIER: &str = "notifier";
+
+const DEFAULT_BATCH_MAX: usize = 200; // this is the default set by the NATS client when you leave the value off
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BaseConfiguration {
@@ -107,6 +110,14 @@ impl InterestDeclaration {
             .cloned()
             .map(|s| s.as_str().unwrap_or_default().trim().to_string())
             .unwrap_or_default()
+    }
+
+    pub fn extract_max_messages_per_batch(&self) -> usize {
+        self.link_definition
+            .values
+            .get(MAX_MESSAGES_PER_BATCH_KEY)
+            .map(|s| s.parse::<usize>().unwrap_or(DEFAULT_BATCH_MAX))
+            .unwrap_or(DEFAULT_BATCH_MAX)
     }
 }
 

@@ -72,7 +72,7 @@ impl CommandConsumer {
 
         let messages = consumer
             .stream()
-            .max_messages_per_batch(1)
+            .max_messages_per_batch(interest.extract_max_messages_per_batch())
             .messages()
             .await?;
         Ok(CommandConsumer { stream: messages })
