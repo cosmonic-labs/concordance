@@ -178,7 +178,7 @@ impl ProviderHandler for ConcordanceProvider {
 
     #[instrument(level = "info", skip(self, ld), fields(actor_id = %ld.actor_id, provider_id = %ld.provider_id, link_name = %ld.link_name))]
     async fn put_link(&self, ld: &LinkDefinition) -> RpcResult<bool> {
-        let decls = match InterestDeclaration::from_linkdefinition(ld) {
+        let decls = match InterestDeclaration::from_linkdefinition(ld.clone()) {
             Ok(decls) => decls,
             Err(e) => {
                 error!("Failed to derive interest declarations from link definition. Aborting due to error: {e}");

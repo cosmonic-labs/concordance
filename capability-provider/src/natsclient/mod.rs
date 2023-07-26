@@ -59,7 +59,7 @@ impl<T> AckableMessage<T> {
     }
 
     pub async fn nack(&mut self) {
-        if let Err(e) = self.custom_ack(AckKind::Nak).await {
+        if let Err(e) = self.custom_ack(AckKind::Nak(None)).await {
             error!(error = %e, "Error when nacking message");
             self.acker = None;
         }
@@ -87,7 +87,7 @@ impl<T> Drop for AckableMessage<T> {
         if let Some(msg) = self.acker.take() {
             if let Ok(handle) = tokio::runtime::Handle::try_current() {
                 handle.spawn(async move {
-                    if let Err(e) = msg.ack_with(AckKind::Nak).await {
+                    if let Err(e) = msg.ack_with(AckKind::Nak(None)).await {
                         warn!(error = %e, "Error when sending nack during drop")
                     }
                 });
