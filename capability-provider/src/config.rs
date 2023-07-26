@@ -205,9 +205,10 @@ impl InterestDeclaration {
     }
 
     pub fn from_linkdefinition(
-        source: &LinkDefinition,
+        source: LinkDefinition,
     ) -> std::result::Result<Vec<InterestDeclaration>, String> {
-        if let Some(raw) = LinkConfigurationRaw::from_linkdef(source) {
+        let source = lowercase_ld_keys(source);
+        if let Some(raw) = LinkConfigurationRaw::from_linkdef(&source) {
             let mut interested_parties = vec![];
             let role = ActorRole::from(raw.role);
             if role == ActorRole::Unknown {
@@ -274,6 +275,21 @@ impl InterestDeclaration {
             }
         }
     }
+}
+
+fn lowercase_ld_keys(ld: LinkDefinition) -> LinkDefinition {
+    let mut values = HashMap::new();
+    for (k, v) in ld.values.iter() {
+        values.insert(k.to_lowercase().trim().to_owned(), v.to_owned());
+    }
+    let mut ldnew = LinkDefinition::default();
+    ldnew.actor_id = ld.actor_id;
+    ldnew.contract_id = ld.contract_id;
+    ldnew.link_name = ld.link_name;
+    ldnew.provider_id = ld.provider_id;
+    ldnew.values = values;
+
+    ldnew
 }
 
 impl fmt::Display for InterestDeclaration {
@@ -481,7 +497,7 @@ mod test {
     #[test]
     fn rejects_empty_linkdefinition() {
         let ld = LinkDefinition::default();
-        let decl = InterestDeclaration::from_linkdefinition(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(ld);
 
         assert!(decl.is_err());
         let e = decl.err().unwrap();
@@ -496,13 +512,38 @@ mod test {
         hm.insert("NAME".to_string(), "user".to_string());
         let ld = generate_ld(hm);
 
-        let decl = InterestDeclaration::from_linkdefinition(&ld).unwrap();
+        let decl = InterestDeclaration::from_linkdefinition(ld).unwrap();
         // Aggregates produce 2 consumers
         assert_eq!(2, decl.len());
         assert_eq!(
             decl[0].actor_id,
             "MAEYUH6M3BIWY5GXHXXUUZNX736AKZ363UY2PQKVHOTHIC2PY2MNVMVA".to_string()
         );
+        assert_eq!(200, decl[0].extract_max_messages_per_batch()); // default is 200
+        assert_eq!(decl[0].role, ActorRole::Aggregate);
+        assert_eq!(
+            decl[0].interest,
+            ActorInterest::AggregateStream("user".to_string())
+        );
+    }
+
+    #[test]
+    fn accepts_max_batch_pull_size() {
+        let mut hm = HashMap::new();
+        hm.insert("ROLE".to_string(), "aggregate".to_string());
+        hm.insert("INTEREST".to_string(), "user".to_string());
+        hm.insert("NAME".to_string(), "user".to_string());
+        hm.insert("maX_meSsaGes_PeR_BaTcH".to_string(), "110".to_string());
+        let ld = generate_ld(hm);
+
+        let decl = InterestDeclaration::from_linkdefinition(ld).unwrap();
+        // Aggregates produce 2 consumers
+        assert_eq!(2, decl.len());
+        assert_eq!(
+            decl[0].actor_id,
+            "MAEYUH6M3BIWY5GXHXXUUZNX736AKZ363UY2PQKVHOTHIC2PY2MNVMVA".to_string()
+        );
+        assert_eq!(110, decl[0].extract_max_messages_per_batch());
         assert_eq!(decl[0].role, ActorRole::Aggregate);
         assert_eq!(
             decl[0].interest,
@@ -517,7 +558,7 @@ mod test {
         hm.insert("INTEREST".to_string(), "bankaccount".to_string());
         let ld = generate_ld(hm);
 
-        let decl = InterestDeclaration::from_linkdefinition(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(ld);
         assert!(decl.is_err());
         let e = decl.err().unwrap();
         assert!(e.starts_with("Failed to parse valid interest declaration from link definition:"));
@@ -533,7 +574,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = &InterestDeclaration::from_linkdefinition(&ld).unwrap()[0];
+        let decl = &InterestDeclaration::from_linkdefinition(ld).unwrap()[0];
 
         assert_eq!(
             decl.interest,
@@ -554,7 +595,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = InterestDeclaration::from_linkdefinition(&ld);
+        let decl = InterestDeclaration::from_linkdefinition(ld);
         assert!(decl.is_err());
     }
 
@@ -568,7 +609,7 @@ mod test {
         );
         hm.insert("NAME".to_string(), "order".to_string());
         let ld = generate_ld(hm);
-        let decl = &InterestDeclaration::from_linkdefinition(&ld).unwrap()[0];
+        let decl = &InterestDeclaration::from_linkdefinition(ld).unwrap()[0];
 
         assert_eq!(
             decl.interest,
