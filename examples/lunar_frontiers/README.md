@@ -1,0 +1,4 @@
+⚠️🔥 **EXPERIMENTAL** ⚠️🔥 - _This sample is not yet ready for use. It is under active development and should only be experimented with if you're helping contribute to the first milestone. This message will be removed when the sample is ready for use._
+
+# Lunar Frontiers
+This Concordance sample illustrates a number of extremely powerful concepts. First and foremost, this sample is designed to allow developers to roll up their sleeves and play with **DDIL** (_Degraded, Disconnected, Intermittent, Limited Bandwidth_) networks. This is a very common scenario for many products, and we want to make sure that Concordance is a great platform for building applications that work in these environments.

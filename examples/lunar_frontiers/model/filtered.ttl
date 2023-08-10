@@ -1,0 +1,64 @@
+# Lunar Frontiers Event Sourcing Specification
+
+# Shape Rules
+# While there may be multiple logical ways to declare relationships, the following
+# is the mandatory way to describe relationships such that the documentation and code
+# generation tools can accurately process the specification.
+#
+# command -> in -> aggregate
+# aggregate -> out -> event
+# event -> in -> projector
+# event -> in -> process-manager
+# pm -> out -> event
+# (entity) -> doc -> "..."
+# (entity) -> desc -> "..."
+# (entity) -> spec -> "..."
+#
+# The name of each entity is value of the node ID minus its URI prefix
+
+@base <http://cosmonic.com/es/> .
+@prefix agg: <aggregate/> .
+@prefix proj: <projector/> .
+@prefix pm: <process-manager/> .
+@prefix n: <notifier/> .
+@prefix p: <predicate/> .
+@prefix e: <event/> .
+@prefix c: <command/> .
+
+# Aggregates
+
+# Rover Aggregate
+c:ProvisionRover p:in agg:rover .
+e:RoverInitialized p:in agg:rover .
+agg:rover p:out e:RoverInitialized .
+
+c:SetDestination p:in agg:rover .
+e:RoverDestinationChanged p:in agg:rover .
+agg:rover p:out e:RoverDestinationChanged .
+
+c:Stop p:in agg:rover .
+e:RoverStopped p:in agg:rover .
+agg:rover p:out e:RoverStopped .
+
+c:Start p:in agg:rover .
+e:RoverStarted p:in agg:rover .
+agg:rover p:out e:RoverStarted .
+
+c:BuildStructure p:in agg:rover .
+e:ConstructionBegan p:in agg:rover .
+agg:rover p:out e:ConstructionBegan .
+
+c:CancelConstruction p:in agg:rover .
+e:ConstructionCancelled p:in agg:rover .
+agg:rover p:out e:ConstructionCancelled .
+
+# Rover Aggregate External Stimuli
+e:ConstructionProgressed p:in agg:rover .
+e:ResourceQuantityChanged p:in agg:rover .
+e:RoverPositionChanged p:in agg:rover .
+
+# Colony Commands
+c:EstablishColony p:in agg:colony .
+e:ColonyClaimed p:in agg:colony .
+agg:colony p:out e:ColonyClaimed .
+
