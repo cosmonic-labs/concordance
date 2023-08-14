@@ -1,22 +1,14 @@
-use eventsourcing::*;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use wasmbus_rpc::actor::prelude::*;
+use wasmcloud_interface_logging::{debug, error};
 
 use lunarfrontiers_model::*;
 
-use wasmcloud_interface_logging::debug;
-
-#[allow(dead_code)]
-mod eventsourcing;
-
-#[allow(dead_code)]
-mod system_traits;
-
-#[allow(dead_code)]
-mod genimpl;
-
-use genimpl::RoverAggregateImpl;
-use system_traits::*;
+concordance_gen::generate!({
+    path: "../model/lunar_frontiers.ttl",
+    role: "aggregate",
+    entity: "rover"
+});
 
 const STREAM: &str = "rover";
 
@@ -27,7 +19,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: ProvisionRover,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<EventList> {
+    ) -> Result<EventList> {
         todo!()
     }
 
@@ -35,19 +27,15 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: SetDestination,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<EventList> {
+    ) -> Result<EventList> {
         todo!()
     }
 
-    fn handle_stop(&self, input: Stop, state: Option<RoverAggregateState>) -> RpcResult<EventList> {
+    fn handle_stop(&self, input: Stop, state: Option<RoverAggregateState>) -> Result<EventList> {
         todo!()
     }
 
-    fn handle_start(
-        &self,
-        input: Start,
-        state: Option<RoverAggregateState>,
-    ) -> RpcResult<EventList> {
+    fn handle_start(&self, input: Start, state: Option<RoverAggregateState>) -> Result<EventList> {
         todo!()
     }
 
@@ -55,7 +43,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: BuildStructure,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<EventList> {
+    ) -> Result<EventList> {
         todo!()
     }
 
@@ -63,7 +51,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: CancelConstruction,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<EventList> {
+    ) -> Result<EventList> {
         todo!()
     }
 
@@ -73,7 +61,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: RoverInitialized,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -81,7 +69,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: RoverDestinationChanged,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -89,7 +77,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: RoverStopped,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -97,7 +85,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: RoverStarted,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -105,7 +93,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: ConstructionBegan,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -113,7 +101,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: ConstructionCancelled,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -121,7 +109,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: ConstructionProgressed,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -129,7 +117,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: ResourceQuantityChanged,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
     }
 
@@ -137,40 +125,7 @@ impl RoverAggregate for RoverAggregateImpl {
         &self,
         input: RoverPositionChanged,
         state: Option<RoverAggregateState>,
-    ) -> RpcResult<StateAck> {
+    ) -> Result<StateAck> {
         todo!()
-    }
-}
-
-// NOTE: we ultimately won't need this either, it'll come with Concordance gen
-impl StateAck {
-    fn ok(state: Option<RoverAggregateState>) -> StateAck {
-        StateAck {
-            succeeded: true,
-            error: None,
-            state: state
-                .clone()
-                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
-        }
-    }
-
-    fn error(msg: &str, state: Option<RoverAggregateState>) -> StateAck {
-        StateAck {
-            succeeded: false,
-            error: Some(msg.to_string()),
-            state: state
-                .clone()
-                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
-        }
-    }
-}
-
-impl Event {
-    fn new(event_type: &str, payload: impl Serialize) -> Event {
-        Event {
-            event_type: event_type.to_string(),
-            stream: STREAM.to_string(),
-            payload: serde_json::to_vec(&payload).unwrap_or_default(),
-        }
     }
 }

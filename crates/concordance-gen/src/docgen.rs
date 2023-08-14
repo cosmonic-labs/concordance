@@ -1,4 +1,3 @@
-
 use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext};
 use rdf::reader::rdf_parser::RdfParser;
 use rdf::reader::turtle_parser::TurtleParser;
@@ -15,10 +14,9 @@ use crate::model::{
 };
 use crate::templates::Asset;
 
-
-
-
-pub(crate) fn render_notifier_list(notifiers: Vec<NotifierSummary>) -> Result<String, Box<dyn Error>> {
+pub(crate) fn render_notifier_list(
+    notifiers: Vec<NotifierSummary>,
+) -> Result<String, Box<dyn Error>> {
     let mut handlebars = Handlebars::new();
     handlebars.register_helper("title-case", Box::new(title_case));
 
@@ -48,7 +46,9 @@ pub(crate) fn render_pm_list(pms: Vec<ProcessManagerSummary>) -> Result<String, 
         .map_err(|e| format!("{}", e).into())
 }
 
-pub(crate) fn render_projector_list(projectors: Vec<ProjectorSummary>) -> Result<String, Box<dyn Error>> {
+pub(crate) fn render_projector_list(
+    projectors: Vec<ProjectorSummary>,
+) -> Result<String, Box<dyn Error>> {
     let mut handlebars = Handlebars::new();
     handlebars.register_helper("title-case", Box::new(title_case));
 
@@ -62,7 +62,9 @@ pub(crate) fn render_projector_list(projectors: Vec<ProjectorSummary>) -> Result
         .map_err(|e| format!("{}", e).into())
 }
 
-pub(crate) fn render_aggregate_list(aggregates: Vec<AggregateSummary>) -> Result<String, Box<dyn Error>> {
+pub(crate) fn render_aggregate_list(
+    aggregates: Vec<AggregateSummary>,
+) -> Result<String, Box<dyn Error>> {
     let mut handlebars = Handlebars::new();
     handlebars.register_helper("title-case", Box::new(title_case));
 

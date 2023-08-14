@@ -1,25 +1,67 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::PathBuf};
 
-use rdf::{graph::Graph, node::Node, uri::Uri};
+use anyhow::Result;
+use rdf::reader::rdf_parser::RdfParser;
+use rdf::{graph::Graph, node::Node, reader::turtle_parser::TurtleParser, uri::Uri};
 use serde::Serialize;
 
+use crate::generator;
+
+#[derive(Debug)]
+pub struct Model {
+    pub(crate) graph: Graph,
+}
+
+impl Model {
+    pub fn from_path(path: PathBuf) -> Result<Model> {
+        let raw = std::fs::read_to_string(path)?;
+        let mut reader = TurtleParser::from_string(raw.to_string());
+        let graph = reader.decode().unwrap();
+
+        Ok(Model { graph })
+    }
+
+    pub fn from_raw(raw: &str) -> Result<Model> {
+        let mut reader = TurtleParser::from_string(raw.to_string());
+        let graph = reader.decode().unwrap();
+
+        Ok(Model { graph })
+    }
+
+    pub fn generate_aggregate(&self, name: &str) -> Result<String> {
+        generator::generate_aggregate(&self, name)
+    }
+
+    pub fn generate_process_manager(&self, name: &str) -> Result<String> {
+        generator::generate_process_manager(&self, name)
+    }
+
+    pub fn generate_general_event_handler(
+        &self,
+        name: &str,
+        entity_type: &EntityType,
+    ) -> Result<String> {
+        generator::generate_general_event_handler(&self, name, entity_type)
+    }
+}
+
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct AggregateIndex {
+pub struct AggregateIndex {
     pub aggregates: Vec<AggregateSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct EventIndex {
+pub struct EventIndex {
     pub events: Vec<EventSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct Notifierindex {
+pub struct Notifierindex {
     pub notifiers: Vec<NotifierSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct NotifierSummary {
+pub struct NotifierSummary {
     pub name: String,
     pub description: String,
     pub inbound: Vec<Entity>,
@@ -37,7 +79,7 @@ impl NotifierSummary {
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct AggregateSummary {
+pub struct AggregateSummary {
     pub name: String,
     pub description: String,
     pub inbound: Vec<Entity>,
@@ -66,7 +108,7 @@ impl AggregateSummary {
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct EventSummary {
+pub struct EventSummary {
     pub name: String,
     pub description: String,
     pub doc: String,
@@ -91,13 +133,13 @@ impl EventSummary {
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct ProjectorIndex {
+pub struct ProjectorIndex {
     pub projectors: Vec<ProjectorSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct ProjectorSummary {
+pub struct ProjectorSummary {
     pub name: String,
     pub description: String,
     pub doc: String,
@@ -118,13 +160,13 @@ impl ProjectorSummary {
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct CommandIndex {
+pub struct CommandIndex {
     pub commands: Vec<CommandSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct CommandSummary {
+pub struct CommandSummary {
     pub name: String,
     pub description: String,
     pub doc: String,
@@ -147,13 +189,13 @@ impl CommandSummary {
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct ProcessManagerIndex {
+pub struct ProcessManagerIndex {
     pub process_managers: Vec<ProcessManagerSummary>,
 }
 
 #[derive(Serialize, Debug, Clone)]
 
-pub(crate) struct ProcessManagerSummary {
+pub struct ProcessManagerSummary {
     pub name: String,
     pub description: String,
     pub doc: String,
@@ -175,7 +217,7 @@ impl ProcessManagerSummary {
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct Entity {
+pub struct Entity {
     pub name: String,
     pub description: String,
     pub link: String,
@@ -270,55 +312,55 @@ impl EntityType {
     }
 }
 
-pub(crate) fn get_aggregates(g: &Graph) -> Vec<AggregateSummary> {
+pub fn get_aggregates(g: &Graph) -> Vec<AggregateSummary> {
     get_nodes_by_prefix(g, "aggregate/")
         .iter()
         .map(|n| AggregateSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn get_events(g: &Graph) -> Vec<EventSummary> {
+pub fn get_events(g: &Graph) -> Vec<EventSummary> {
     get_nodes_by_prefix(g, "event/")
         .iter()
         .map(|n| EventSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn get_commands(g: &Graph) -> Vec<CommandSummary> {
+pub fn get_commands(g: &Graph) -> Vec<CommandSummary> {
     get_nodes_by_prefix(g, "command/")
         .iter()
         .map(|n| CommandSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn get_process_managers(g: &Graph) -> Vec<ProcessManagerSummary> {
+pub fn get_process_managers(g: &Graph) -> Vec<ProcessManagerSummary> {
     get_nodes_by_prefix(g, "process-manager/")
         .iter()
         .map(|n| ProcessManagerSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn get_projectors(g: &Graph) -> Vec<ProjectorSummary> {
+pub fn get_projectors(g: &Graph) -> Vec<ProjectorSummary> {
     get_nodes_by_prefix(g, "projector/")
         .iter()
         .map(|n| ProjectorSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn get_notifiers(g: &Graph) -> Vec<NotifierSummary> {
+pub fn get_notifiers(g: &Graph) -> Vec<NotifierSummary> {
     get_nodes_by_prefix(g, "notifier/")
         .iter()
         .map(|n| NotifierSummary::new_from_node(g, n))
         .collect()
 }
 
-pub(crate) fn find_node(g: &Graph, name: &str, prefix: &str) -> Option<Node> {
+pub fn find_node(g: &Graph, name: &str, prefix: &str) -> Option<Node> {
     get_nodes_by_prefix(g, prefix)
         .into_iter()
         .find(|n| get_node_name(n) == name)
 }
 
-pub(crate) fn find_entity(g: &Graph, name: &str, prefix: &str) -> Option<Entity> {
+pub fn find_entity(g: &Graph, name: &str, prefix: &str) -> Option<Entity> {
     find_node(g, name, prefix).map(|n| Entity::new_from_node(g, &n))
 }
 
@@ -359,7 +401,7 @@ fn get_node_description(g: &Graph, n: &Node) -> String {
     }
 }
 
-pub(crate) fn inbound_to_node(g: &Graph, n: &Node) -> Vec<Entity> {
+pub fn inbound_to_node(g: &Graph, n: &Node) -> Vec<Entity> {
     g.get_triples_with_object(n)
         .iter()
         .map(|t| Entity::new_from_node(g, t.subject()))

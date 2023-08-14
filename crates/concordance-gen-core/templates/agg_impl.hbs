@@ -1,10 +1,9 @@
 // TODO: unhardcode this
-use crate::eventsourcing::*;
+use concordance_gen::eventsourcing::*;
 
-use crate::*;
+use wasmcloud_interface_logging as walog;
 
-use wasmcloud_interface_logging::error;
-
+use wasmbus_rpc::actor::prelude::*;
 
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, {{impltype}}Service)]
@@ -13,25 +12,25 @@ pub(crate) struct {{traitname}}{{impltype}}Impl {}
 #[async_trait]
 impl {{impltype}}Service for {{traitname}}{{impltype}}Impl {
     async fn handle_command(&self, _ctx: &Context, arg: &StatefulCommand) -> RpcResult<EventList> {
-        {{#if inbound_commands}}
+        {{#if summary.inbound_commands}}
           let state: Option<{{traitname}}{{impltype}}State> = arg
             .state
             .clone()
             .map(|bytes| deserialize_json(&bytes).unwrap_or_default());
 
         match arg.command_type.as_str() {
-             {{#each inbound_commands as |input|}}
+             {{#each summary.inbound_commands as |input|}}
                 {{input.name}}::TYPE => {
                     {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
                         self,
                         deserialize_json(&arg.payload)?,                        
                         state
-                    ).await                    
+                    ).map_err(|e| RpcError::ActorHandler(e.to_string()))                   
                 },
                 
              {{/each}}                           
             e => {
-                error!("Unsupported command type: {e}. Interest configuration for this {{impltype}} is probably incorect.");
+                walog::error!("Unsupported command type: {e}. Interest configuration for this {{impltype}} is probably incorect.");
                 Ok(vec![])
             }
         }
@@ -47,21 +46,28 @@ impl {{impltype}}Service for {{traitname}}{{impltype}}Impl {
          .map(|bytes| deserialize_json(&bytes).unwrap_or_default());
 
         Ok(match arg.event.event_type.as_str() {
-            {{#each inbound_events as |input|}}
+            {{#each summary.inbound_events as |input|}}
             {{input.name}}::TYPE => {
                 {{../traitname}}{{../impltype}}::apply_{{method-name input.name}}(
                     self,
                     deserialize_json(&arg.event.payload)?,                    
-                    state
-                ).await? },
+                    state).map_err(|e| RpcError::ActorHandler(e.to_string()))?
+                },
             {{/each}}
             e =>   {
-                debug!("Non-state-mutating event received '{e}'. Acking and moving on.");
-                StateAck::ok(state)
+                walog::debug!("Non-state-mutating event received '{e}'. Acking and moving on.");
+                 StateAck {
+                    succeeded: true,
+                    error: None,
+                    state: state
+                        .clone()
+                        .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
+                }
             }
         })        
     }
 }
+
 
 fn deserialize_json<'de, T: Deserialize<'de>>(
     buf: &'de [u8],
@@ -72,7 +78,3 @@ fn deserialize_json<'de, T: Deserialize<'de>>(
 fn serialize_json<T: Serialize>(data: &T) -> RpcResult<Vec<u8>> {
     serde_json::to_vec(data).map_err(|e| format!("Serialization failure: {e:?}").into())
 }
-
-
-// TODO: generate `new` functions for each of the commands and events that auto-include their
-// types, etc

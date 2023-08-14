@@ -1,18 +1,26 @@
-// CODEGEN notice this is an automatically generated file. Do not modify this directly.
+use concordance_gen::eventsourcing::*;
 
-use crate::*;
+use wasmcloud_interface_logging as walog;
 
-use wasmcloud_interface_logging::error;
+use wasmbus_rpc::actor::prelude::*;
 
-// One-way event handler implementation for {{implytype}}.{{traitname}}
+// One-way event handler implementation for {{impltype}}.{{traitname}}
 
+/// {{title-case rootname}} {{impltype}}
+#[async_trait]
+pub trait {{trait-name rootname}}{{impltype}} {
+
+    {{#each inbound_events}}
+    async fn handle_{{method-name name}}(&self, input: {{name}}) -> RpcResult<()>;
+    {{/each}}    
+}
 
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, StatelessEventHandlerService)]
 pub(crate) struct {{traitname}}{{impltype}}Impl {}
 
 #[async_trait]
-impl StatelessEventHandlerService for {{traitname}}{{impltype}}Impl {    
+impl StatelessEventHandlerService for {{traitname}}{{impltype}}Impl {        
     async fn apply_stateless_event(&self, _ctx: &Context, arg: &Event) -> RpcResult<StatelessAck> {        
 
         Ok(match arg.event_type.as_str() {
@@ -21,10 +29,10 @@ impl StatelessEventHandlerService for {{traitname}}{{impltype}}Impl {
                 {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
                     self,
                     deserialize_json(&arg.payload)?,                    
-                ).into() },
+                ).await.into() },
             {{/each}}
             e =>   {
-                debug!("Unexpected event received '{e}'. Acking and moving on.");
+                walog::debug!("Unexpected event received '{e}'. Acking and moving on.");
                 StatelessAck::ok()
             }
         })        
@@ -41,27 +49,4 @@ fn serialize_json<T: Serialize>(data: &T) -> RpcResult<Vec<u8>> {
     serde_json::to_vec(data).map_err(|e| format!("Serialization failure: {e:?}").into())
 }
 
-impl Into<StatelessAck> for Result<(), RpcError> {
-    fn into(self) -> StatelessAck {
-        match self {
-            Ok(_) => StatelessAck::ok(),
-            Err(e) => {
-                error!("Error handling event: {:?}", e);
-                StatelessAck::error(e.to_string())
-            }
-        }
-    }
-}
 
-impl StatelessAck {
-    pub fn ok() -> Self {
-        Self { error: None, succeeded: true }
-    }
-
-    pub fn error(msg: String) -> Self {
-        Self {
-            error: Some(msg),
-            succeeded: false
-        }
-    }
-}
