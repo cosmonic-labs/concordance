@@ -6,12 +6,20 @@ use wasmbus_rpc::actor::prelude::*;
 
 // One-way event handler implementation for {{impltype}}.{{traitname}}
 
+
+
+{{#each summary.inbound as |input|}}
+impl {{input.name}} {
+    pub const TYPE: &'static str = "{{method-name input.name}}";
+} 
+{{/each}}
+
 /// {{title-case rootname}} {{impltype}}
 #[async_trait]
-pub trait {{trait-name rootname}}{{impltype}} {
+pub trait {{traitname}}{{impltype}} {
 
-    {{#each inbound_events}}
-    async fn handle_{{method-name name}}(&self, input: {{name}}) -> RpcResult<()>;
+    {{#each summary.inbound}}
+    async fn handle_{{method-name name}}(&self, input: {{name}}) -> anyhow::Result<()>;
     {{/each}}    
 }
 
@@ -24,12 +32,17 @@ impl StatelessEventHandlerService for {{traitname}}{{impltype}}Impl {
     async fn apply_stateless_event(&self, _ctx: &Context, arg: &Event) -> RpcResult<StatelessAck> {        
 
         Ok(match arg.event_type.as_str() {
-            {{#each inbound_events as |input|}}
+            {{#each summary.inbound as |input|}}
             {{input.name}}::TYPE => {
-                {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
+                let res = {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
                     self,
                     deserialize_json(&arg.payload)?,                    
-                ).await.into() },
+                ).await;
+                 match res {
+                    Ok(_) => StatelessAck::ok(),
+                    Err(e) => StatelessAck::error(e.to_string()),
+                }
+            },
             {{/each}}
             e =>   {
                 walog::debug!("Unexpected event received '{e}'. Acking and moving on.");

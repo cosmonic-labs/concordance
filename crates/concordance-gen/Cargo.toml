@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rdf = "0.1.4"
-handlebars = "4.3.3"
+anyhow = "1.0.75"
 Inflector = "0.11.4"
 rust-embed = {version = "6.4.0", features = ["debug-embed"] }
 serde = {version = "1.0.144", features = ["derive"] }

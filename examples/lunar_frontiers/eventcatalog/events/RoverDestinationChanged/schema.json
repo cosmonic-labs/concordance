@@ -1,0 +1,41 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RoverDestinationChanged",
+    "type": "object",
+    "properties": {     
+     "tick": {
+        "type": "integer",
+        "description": "Time index in which the event occurred"
+     },
+      "colonyId": {
+        "type": "string",
+        "description": "ID of the colony"
+      },      
+      "moonId": {
+        "type": "string",
+        "description": "ID of the moon"
+      },
+     "mothershipId": {
+        "type": "string",
+        "description": "Mothership ID"
+     },
+     "roverId": {
+        "type": "string",
+        "description": "Unique identifier of the rover"
+     },
+     "position": {
+        "type": "object",
+        "properties": {
+            "x": {
+                "type": "integer",
+                "description": "X coordinate of the rover"
+            },
+            "y": {
+                "type": "integer",
+                "description": "Y coordinate of the rover"
+            }
+        }
+     }
+    }
+}

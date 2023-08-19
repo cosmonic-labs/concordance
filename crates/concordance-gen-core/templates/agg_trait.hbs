@@ -1,6 +1,6 @@
 /// {{title-case summary.name}} Aggregate Required Trait
 pub trait {{trait-name summary.name}}Aggregate {
-    {{#if summary.inbound}}
+    
     // Commands
     {{#each summary.inbound_commands as |input|}}
     fn handle_{{method-name input.name}}(&self, input: {{input.name}}, state: Option<{{../traitname}}AggregateState>) -> anyhow::Result<EventList>;
@@ -10,6 +10,5 @@ pub trait {{trait-name summary.name}}Aggregate {
     // Events
     {{#each summary.inbound_events as |input|}}
     fn apply_{{method-name input.name}}(&self, input: {{input.name}}, state: Option<{{../traitname}}AggregateState>) -> anyhow::Result<StateAck>;
-    {{/each}}
-    {{/if}}    
+    {{/each}}    
 }

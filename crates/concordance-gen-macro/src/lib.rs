@@ -1,28 +1,26 @@
 use concordance_gen_core::model::EntityType;
-use concordance_gen_core::Model;
+use concordance_gen_core::model::EventCatalogSite;
 use proc_macro2::{Span, TokenStream};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use syn::parse::{Error, Parse, ParseStream, Result};
 use syn::punctuated::Punctuated;
-use syn::{braced, token, Token};
+use syn::{token, Token};
 
+
+/// Generates the trait needed to be implemented by the event sourced component, along with all
+/// of the data types to be used by the functions in that trait
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    syn::parse_macro_input!(input as Config)
+    syn::parse_macro_input!(input as EventCatalogConfig)
         .expand()
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }
 
-struct Config {
-    model: Model,
+struct EventCatalogConfig {
+    catalog: EventCatalogSite,
     role: GeneratorRole,
     entity: String,
-}
-
-enum Source {
-    Path(String),
-    Inline(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,7 +43,35 @@ impl From<String> for GeneratorRole {
     }
 }
 
-impl Parse for Config {
+impl EventCatalogConfig {
+    fn expand(self) -> Result<TokenStream> {
+        let src = match self.role {
+            GeneratorRole::Aggregate => self
+                .catalog
+                .generate_aggregate(&self.entity)
+                .map_err(|e| syn::Error::new(Span::call_site(), e)),
+            GeneratorRole::Projector => self
+                .catalog
+                .generate_general_event_handler(&self.entity, &EntityType::Projector)
+                .map_err(|e| syn::Error::new(Span::call_site(), e)),
+            GeneratorRole::Notifier => self
+                .catalog
+                .generate_general_event_handler(&self.entity, &EntityType::Notifier)
+                .map_err(|e| syn::Error::new(Span::call_site(), e)),
+            GeneratorRole::ProcessManager => self
+                .catalog
+                .generate_process_manager(&self.entity)
+                .map_err(|e| syn::Error::new(Span::call_site(), e)),
+            // _ => Err(syn::Error::new(Span::call_site(), "Not implemented")),
+        }?;
+
+        let contents = src.parse::<TokenStream>().unwrap();
+
+        Ok(contents)
+    }
+}
+
+impl Parse for EventCatalogConfig {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let call_site = Span::call_site();
 
@@ -63,7 +89,7 @@ impl Parse for Config {
                         if source.is_some() {
                             return Err(Error::new(s.span(), "cannot specify multiple sources"));
                         }
-                        source = Some(Source::Path(s.value()));
+                        source = Some(PathBuf::from(s.value()));
                     }
                     Opt::Entity(s) => {
                         if entity.is_some() {
@@ -80,11 +106,10 @@ impl Parse for Config {
                 }
             }
         } else {
-            source = Some(Source::Path(input.parse::<syn::LitStr>()?.value()));
-            role = Some(GeneratorRole::Aggregate);
-            //if input.parse::<Option<syn::token::In>>()?.is_some() {
-            //source = Some(Source::Path(input.parse::<syn::LitStr>()?.value()));
-            //}
+            return Err(Error::new(
+                call_site,
+                "Not enough parameters supplied for the code generator",
+            ));       
         }
 
         let source = source.ok_or_else(|| {
@@ -97,55 +122,15 @@ impl Parse for Config {
             .ok_or_else(|| Error::new(call_site, "Unable to determine a role for the generator"))?;
         let entity =
             entity.ok_or_else(|| Error::new(call_site, "No entity specified for generator"))?;
-        let raw = parse_source(&source)?;
-        let model = Model::from_raw(&raw).unwrap();
 
-        Ok(Config {
-            model,
+        let catalog = EventCatalogSite::new_from_root_path(source)
+            .map_err(|_| Error::new(call_site, "No entity specified for generator"))?;
+
+        Ok(EventCatalogConfig {
+            catalog,
             role,
             entity,
         })
-    }
-}
-
-impl Config {
-    fn expand(self) -> Result<TokenStream> {
-        let src = match self.role {
-            GeneratorRole::Aggregate => self
-                .model
-                .generate_aggregate(&self.entity)
-                .map_err(|e| syn::Error::new(Span::call_site(), e)),
-            GeneratorRole::Projector => self
-                .model
-                .generate_general_event_handler(&self.entity, &EntityType::Projector)
-                .map_err(|e| syn::Error::new(Span::call_site(), e)),
-            GeneratorRole::Notifier => self
-                .model
-                .generate_general_event_handler(&self.entity, &EntityType::Notifier)
-                .map_err(|e| syn::Error::new(Span::call_site(), e)),
-            GeneratorRole::ProcessManager => self
-                .model
-                .generate_process_manager(&self.entity)
-                .map_err(|e| syn::Error::new(Span::call_site(), e)),
-            _ => Err(syn::Error::new(Span::call_site(), "Not implemented")),
-        }?;
-
-        let contents = src.parse::<TokenStream>().unwrap();
-
-        Ok(contents)
-    }
-}
-
-fn parse_source(source: &Source) -> Result<String> {
-    match source {
-        Source::Path(path) => {
-            let path = Path::new(path);
-            if !path.is_file() {
-                return Err(Error::new(Span::call_site(), "file not found"));
-            }
-            std::fs::read_to_string(path).map_err(|e| Error::new(Span::call_site(), e))
-        }
-        Source::Inline(s) => Ok(s.clone()),
     }
 }
 

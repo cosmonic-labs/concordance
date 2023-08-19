@@ -4,12 +4,20 @@ use wasmcloud_interface_logging as walog;
 
 use wasmbus_rpc::actor::prelude::*;
 
+{{#each pm.inbound as |input|}}
+impl {{input.name}} {
+    pub const TYPE: &'static str = "{{method-name input.name}}";
+} 
+{{/each}}
+
+
 /// {{title-case pm.name}} Process Manager
-pub trait {{trait-name pm.name}}ProcessManager {
+#[async_trait]
+pub trait {{traitname}}ProcessManager {
     {{#if pm.inbound}}
     // Inputs
     {{#each pm.inbound as |input|}}
-    fn handle_{{method-name input.name}}(&self, input: {{input.name}}, state: Option<{{../traitname}}ProcessManagerState>) -> RpcResult<ProcessManagerAck>;
+    async fn handle_{{method-name input.name}}(&self, input: {{input.name}}, state: Option<{{../traitname}}ProcessManagerState>) -> RpcResult<ProcessManagerAck>;
     {{/each}}
     {{/if}}   
 }
@@ -34,7 +42,7 @@ impl {{impltype}}Service for {{traitname}}{{impltype}}Impl {
                 {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
                     self,
                     deserialize_json(&arg.event.payload)?,                    
-                    state)?
+                    state).await?
                 },
             {{/each}}
             e =>  {

@@ -1,0 +1,32 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConstructionCancelled",
+    "type": "object",
+    "properties": {
+     "buildingId":  {
+        "type": "string",
+        "description": "Unique identifier of the building site being cancelled"
+     },
+     "tick": {
+        "type": "integer",
+        "description": "Time index in which the event occurred"
+     },
+      "colonyId": {
+        "type": "string",
+        "description": "ID of the colony"
+      },      
+      "moonId": {
+        "type": "string",
+        "description": "ID of the moon"
+      },
+     "mothershipId": {
+        "type": "string",
+        "description": "Mothership ID"
+     },
+     "roverId": {
+        "type": "string",
+        "description": "Unique identifier of the rover that is cancelling the construction"
+     }     
+    }
+}

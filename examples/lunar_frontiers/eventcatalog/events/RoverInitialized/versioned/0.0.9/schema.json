@@ -1,0 +1,35 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RoverInitialized",
+    "type": "object",
+    "properties": {
+      "roverId": {
+        "type": "string",
+        "description": "A globally unique ID for this rover"
+      },
+      "position": {
+        "type": "object",
+        "description": "The grid coordinate where the rover was initialized",
+        "properties": {
+            "x": {
+                "type": "integer",
+                "description": "The x coordinate of the grid"
+            },
+            "y": {
+                "type": "integer",
+                "description": "The y coordinate of the grid"
+            }
+        }
+      },
+      "moonId": {
+        "type": "string",
+        "description": "The unique ID of the moon on which the rover has beend eployed"
+      },
+      "pilotKey": {
+        "description": "The public key of the pilot component (wasm) responsible for the rover's decisions",
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9]{56}"        
+      }
+    }
+}

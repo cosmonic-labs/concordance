@@ -1,50 +1,50 @@
 use anyhow::Result;
 use handlebars::Handlebars;
-use rdf::{graph::Graph, node::Node};
 use serde::Serialize;
 
 use crate::{
-    generator::{method_case, title_case, trait_case},
-    model::{inbound_to_node, Entity, EntityType},
+    generator::register_helpers,
+    model::{eventcatalog::EventCatalogSite, GenHandlerSummary},
     templates::Asset,
 };
 
 #[derive(Serialize, Debug, Clone)]
-struct ImplWrapperContext {
+pub(crate) struct GenHandlerContext {
+    summary: GenHandlerSummary,
     traitname: String,
     rootname: String,
     impltype: String,
-    inbound_commands: Vec<Entity>,
-    inbound_events: Vec<Entity>,
 }
 
-pub(crate) fn render(g: &Graph, n: &Node) -> Result<String> {
-    let inbound = inbound_to_node(g, n);
-    let (inbound_commands, inbound_events): (Vec<_>, Vec<_>) = inbound
-        .clone()
-        .into_iter()
-        .partition(|input| input.entity_type == EntityType::Command);
+pub(crate) fn render(catalog: &EventCatalogSite, genhandler: &GenHandlerSummary) -> Result<String> {    
+
     let mut handlebars = Handlebars::new();
-    handlebars.register_helper("title-case", Box::new(title_case));
-    handlebars.register_helper("trait-name", Box::new(trait_case));
-    handlebars.register_helper("method-name", Box::new(method_case));
+    register_helpers(&mut handlebars);
+    let impl_template = Asset::get("gen_evt_handler.hbs").unwrap();
+    let template_impl_str = std::str::from_utf8(impl_template.data.as_ref())?;
 
-    let template = Asset::get("gen_evt_handler.hbs").unwrap();
-    let template_str = std::str::from_utf8(template.data.as_ref())?;
-
-    let entity = Entity::new_from_node(g, n);
-
-    let entity_name = entity.name.to_string();
-
-    let wrapper = ImplWrapperContext {
-        traitname: inflector::cases::classcase::to_class_case(&entity_name),
-        rootname: entity_name.to_string(),
-        impltype: entity.entity_type.to_trait_name(),
-        inbound_commands: inbound_commands,
-        inbound_events: inbound_events,
+    let wrapper = GenHandlerContext {
+        summary: genhandler.clone(),
+        traitname: inflector::cases::classcase::to_class_case(&genhandler.name),
+        rootname: genhandler.name.clone(),
+        impltype: genhandler.entity_type.to_trait_name(),
     };
 
-    handlebars
-        .render_template(template_str, &wrapper)
-        .map_err(|e| anyhow::anyhow!("Template render failure: {}", e))
+    let gen_impl = handlebars
+        .render_template(template_impl_str, &wrapper)
+        .map_err(|e| anyhow::anyhow!("Template render failure: {}", e))?;
+
+    let mut structs = Vec::new();
+
+    for entity in genhandler.inbound.iter() {
+        if let Some(schema) = catalog.schemas.get(&entity.name) {
+            let tsettings = typify::TypeSpaceSettings::default();
+            let mut tspace = typify::TypeSpace::new(&tsettings);
+            tspace.add_root_schema(serde_json::from_value(schema.clone())?)?;
+
+            structs.push(tspace.to_stream().to_string());
+        }
+    }
+
+    Ok(format!("\n{}\n\n{}", structs.join("\n"), gen_impl))
 }

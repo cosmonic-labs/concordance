@@ -1,0 +1,34 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ColonyClaimed",
+    "type": "object",
+    "properties": {
+      "colonyId": {
+        "type": "string",
+        "description": "A globally unique ID for this colony"
+      },      
+      "moonId": {
+        "type": "string",
+        "description": "The unique ID of the moon on which the colony is being claimed"
+      },
+     "mothershipId": {
+        "type": "string",
+        "description": "Unique ID of the mothership responsible for claiming this colony"
+     },
+     "parameters": {
+        "type": "object",
+        "description": "Initial parameters for this colony",
+        "properties": {
+            "gridHeight": {
+                "type": "integer",
+                "description": "Height of the colony grid"
+            },
+            "gridWidth": {
+                "type": "integer",
+                "description": "Width of the colony grid"
+            }
+        }   
+     }
+    }
+}

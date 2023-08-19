@@ -9,6 +9,18 @@ use wasmbus_rpc::actor::prelude::*;
 #[services(Actor, {{impltype}}Service)]
 pub(crate) struct {{traitname}}{{impltype}}Impl {}
 
+{{#each summary.inbound_events as |input|}}
+impl {{input.name}} {
+    pub const TYPE: &'static str = "{{method-name input.name}}";
+} 
+{{/each}}
+
+{{#each summary.inbound_commands as |input|}}
+impl {{input.name}} {
+    pub const TYPE: &'static str = "{{method-name input.name}}";
+} 
+{{/each}}
+
 #[async_trait]
 impl {{impltype}}Service for {{traitname}}{{impltype}}Impl {
     async fn handle_command(&self, _ctx: &Context, arg: &StatefulCommand) -> RpcResult<EventList> {

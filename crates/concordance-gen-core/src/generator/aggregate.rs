@@ -1,10 +1,11 @@
+use crate::generator::register_helpers;
+use crate::model::eventcatalog::EventCatalogSite;
 use crate::{
-    generator::{method_case, title_case, trait_case},
-    model::{AggregateSummary, Entity, EntityType},
+    model::{AggregateSummary, EntityType},
     templates::Asset,
 };
 use anyhow::Result;
-use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContext};
+use handlebars::Handlebars;
 use serde::Serialize;
 
 #[derive(Serialize, Debug, Clone)]
@@ -21,11 +22,9 @@ struct ImplContext {
     summary: AggregateSummary,
 }
 
-pub(crate) fn render(aggregate: &AggregateSummary) -> Result<String> {
+pub(crate) fn render(catalog: &EventCatalogSite, aggregate: &AggregateSummary) -> Result<String> {
     let mut handlebars = Handlebars::new();
-    handlebars.register_helper("title-case", Box::new(title_case));
-    handlebars.register_helper("trait-name", Box::new(trait_case));
-    handlebars.register_helper("method-name", Box::new(method_case));
+    register_helpers(&mut handlebars);
 
     let template = Asset::get("agg_trait.hbs").unwrap();
     let template_str = std::str::from_utf8(template.data.as_ref())?;
@@ -53,5 +52,26 @@ pub(crate) fn render(aggregate: &AggregateSummary) -> Result<String> {
         .render_template(template_impl_str, &impl_wrapper)
         .map_err(|e| anyhow::anyhow!("Template render failure: {}", e))?;
 
-    Ok(format!("\n{}\n\n{}", agg_trait, agg_impl))
+    let mut structs = Vec::new();
+    let all = aggregate
+        .inbound_commands
+        .iter()
+        .chain(aggregate.inbound_events.iter());
+
+    for entity in all {
+        if let Some(schema) = catalog.schemas.get(&entity.name) {
+            let tsettings = typify::TypeSpaceSettings::default();
+            let mut tspace = typify::TypeSpace::new(&tsettings);
+            tspace.add_root_schema(serde_json::from_value(schema.clone())?)?;
+            // tspace.add_type(serde_json::from_value(schema.clone())?);
+            structs.push(tspace.to_stream().to_string());
+        }
+    }
+    
+    Ok(format!(
+        "\n{}\n\n{}\n\n{}",
+        structs.join("\n"),
+        agg_trait,
+        agg_impl
+    ))
 }

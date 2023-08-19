@@ -2,35 +2,34 @@
 This crate is an _opt-in_ code generation tool for developers building applications using Concordance. If you are building
 your event sourced components in **Rust**, then you'll be able to use this crate from your event sourced (wasm) component by using the `generate!` macro.
 
+This code generator works by being pointed at an [eventcatalog](https://www.eventcatalog.dev/) site as the single source of truth for the event flow and event schemas. Simply tell the code generator where the site is, and the name and type of component you're generating, and it will take care of creating the appropriate trait for you to implement.
+
+Internally, the `eventsourcing` model contains the core data types for dealing with the `cosmonic:eventsourcing` wasmCloud capability contract. Developers using this crate do not need to interact with that interface directly.
+
 ## Usage
 To use this crate, you'll need to add it to your `Cargo.toml` file as a dependency. Then, you can use the `generate` macro:
 
 ```rust
-use bankaccount_model::commands::*;
-use bankaccount_model::events::*;
 use bankaccount_model::state::*;
 
 use anyhow::Result;
-
-// use concordance_codegen::eventsourcing:: ??
 
 use serde::{Deserialize, Serialize};
 use wasmcloud_interface_logging::error;
 
 concordance_gen::generate!({
-    path: "../bankaccount-model.ttl",
+    path: "../eventcatalog",
     role: "aggregate",
     entity: "bankaccount"
 });
 ```
 
-It's important to note that it is the developer's responsibility to ensure that all of the "model" types are available to the generate macro, since that macro makes a number of assumptions about the availability of types when it generates traits and implementations.
+Note that _all_ of the data types involved in this flow are generated from the JSON schemas found alongside their markdown documentation. You do not need to create any data types unless you're building a _stateful_ component (aggregate, process manager). Then you'll need to create a state struct that conforms to Concordance's naming convention.
 
 The valid roles are the same as the list of valid roles in Concordance link definitions:
-* aggregate
-* projector
-* process_manager
-* notifier
 
-## Generating Documentation
-You can produce markdown documentation by invoking the `generate_doc` function inside your `build.rs` and pointing it at the model (Turtle RDF) file. The markdown documentation will produce index files enumerating all of the events, commands, aggregates, projectors, and process managers in your even model, as well as linking to the corresponding events and commands in describing the inbound and outbound flows.
+* `aggregate`
+* `projector`
+* `process_manager`
+* `notifier`
+

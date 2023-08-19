@@ -1,0 +1,16 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConstructionCompleted",
+    "type": "object",
+    "properties": {
+     "buildingId": {
+        "type": "string",
+        "description": "A globally unique identifier to be used for this construction site and the resulting building"
+     },
+     "tick": {
+        "type": "integer",
+        "description": "Time index in which the event occurred"
+     }     
+    }
+}
