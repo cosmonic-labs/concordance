@@ -13,5 +13,3 @@ Note that you won't be able to create this link definition in the dashboard from
 ```
 wash ctl link put MC5EQZ6NZY2T5US5JJTCJVAWHETCIIZLLVFUPERSTO2T3AR2NF62JWKI VAUL6FF47DZIMDOGNWZBCPVABWDK3UEZ5U7DGAM4HCKCHOEPTBZHGTAM cosmonic:eventsourcing ROLE=process_manager KEY=wire_transfer_id NAME=interbankxfer INTEREST='{"start":"wire_transfer_requested","advance":["wire_funds_reserved","interbank_transfer_initiated"],"stop":["interbank_transfer_completed","interbank_transfer_failed"]}'
 ```
-
-TBD

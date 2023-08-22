@@ -1,91 +1,109 @@
-mod model;
-mod templates;
-mod codegen;
-mod docgen;
+//!
+//! # Concordance Code Generation
+//! This crate provides an entry point into the code generation macro for concordance. This crate utilizes
+//! a `core` crate containing the reusable generation logic and a proc macro crate that contains the actual
+//! macro. 
+//! 
+//! There are a few convenience wrappers around stock Concordance types like `StateAck` and `ProcessManagerAck`, etc.
+pub mod eventsourcing;
 
+use eventsourcing::{CommandList, Event, OutputCommand, ProcessManagerAck, StateAck, StatelessAck};
 
-use std::{path::PathBuf, error::Error, fs::{File, create_dir_all}, io::Write};
+pub use concordance_gen_macro::*;
+use serde::Serialize;
+use wasmbus_rpc::error::{RpcError, RpcResult};
 
-use codegen::{TraitsContext, render_trait_list};
-use docgen::{render_aggregate_list, render_event_list, render_command_list, render_pm_list, render_projector_list, render_notifier_list};
-use model::{get_aggregates, get_events, get_commands, get_process_managers, get_projectors, get_notifiers};
-use rdf::{graph::Graph, reader::{turtle_parser::TurtleParser, rdf_parser::RdfParser}};
-
-pub use model::*;
-
-/// Generates a single implementation for the given entity. The entity name and entity type must match the name and
-/// entity type as declared in the Turtle RDF (ttl) model specification file. Note that your actor will likely see numerous
-/// compilation errors until you create your own implementation of the system traits.
-pub fn generate_impl(source: PathBuf, output: PathBuf, entity_name: String, entity_type: EntityType, esinterface: String) -> Result<(), Box<dyn Error>> {
-    let input = std::fs::read_to_string(source)?;
-    let mut reader = TurtleParser::from_string(input.to_string());
-    let graph = reader.decode()?;
-
-    codegen::generate_impl(&graph, esinterface, entity_type, entity_name, output)?;
-    Ok(())
-}
-
-/// Generates the set of traits as described in the model specification Turtle RDF (ttl) file. These traits are for developers
-/// to implement, while the code from `generate_impl` creates the wrappers that invoke developer code. Currently this function
-/// generates traits for every applicable entity discovered in the model. In the future, we allow the generation of a single
-/// trait. 
-pub fn generate_system_traits(source: PathBuf, output: PathBuf) -> Result<(), Box<dyn Error>> {
-    let input = std::fs::read_to_string(source)?;
-    let mut reader = TurtleParser::from_string(input.to_string());
-    let graph = reader.decode()?;
-
-    let ctx = TraitsContext {
-        aggregates: get_aggregates(&graph),
-        events: get_events(&graph),
-        commands: get_commands(&graph),
-        pms: get_process_managers(&graph),
-        projectors: get_projectors(&graph),
-        notifiers: get_notifiers(&graph),
-    };
-
-    let mut file = File::create(output.join("system_traits.rs"))?;
-    file.write_all(render_trait_list(ctx)?.as_bytes())?;
-    Ok(())
-}
-
-/// Generate markdown documentation based on the model specification Turtle RDF (ttl) file. This function emits a number of 
-/// markdown files, an index file for each entity type.
-pub fn generate_doc(source: PathBuf, output: PathBuf) -> Result<(), Box<dyn Error>> {
-
-    if !output.exists() {
-        create_dir_all(output.clone())?;
-    }
-    if !output.is_dir() {
-        return Err(format!("{:?} is not a directory.", output).into());
+impl StateAck {
+    /// Indicates that a stateful event handler completed successfully. Return `None` for the state to
+    /// remove the state from storage
+    pub fn ok(state: Option<impl Serialize + Clone>) -> StateAck {
+        StateAck {
+            succeeded: true,
+            error: None,
+            state: state
+                .clone()
+                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
+        }
     }
 
-    let input = std::fs::read_to_string(source)?;
-    let mut reader = TurtleParser::from_string(input.to_string());
-    let graph = reader.decode()?;
-    let aggregates = get_aggregates(&graph);
-    let events = get_events(&graph);
-    let commands = get_commands(&graph);
-    let pms = get_process_managers(&graph);
-    let projectors = get_projectors(&graph);
-    let notifiers = get_notifiers(&graph);
+    /// Indicates a processing failure within a stateful event handler. Note that even when returning
+    /// an error, you should still return the most recent _stable_ state wherever appropriate. Do not
+    /// return `None` just because there was an error, as that will _erase_ the state from storage.
+    pub fn error(msg: &str, state: Option<impl Serialize + Clone>) -> StateAck {
+        StateAck {
+            succeeded: false,
+            error: Some(msg.to_string()),
+            state: state
+                .clone()
+                .map(|s| serde_json::to_vec(&s).unwrap_or_default()),
+        }
+    }
+}
 
-    let mut file = File::create(output.join("agg_index.md"))?;
-    file.write_all(render_aggregate_list(aggregates)?.as_bytes())?;
+impl ProcessManagerAck {
+    /// Ackknowledges successfully a process manager operation. This will create an ack that also contains
+    /// the list of output commands to be requested of the given stream
+    pub fn ok(state: Option<impl Serialize>, cmds: CommandList) -> Self {
+        Self {
+            state: state.map(|s| serialize_json(&s).unwrap_or_default()),
+            commands: cmds,
+        }
+    }
+}
 
-    let mut file = File::create(output.join("evt_index.md"))?;
-    file.write_all(render_event_list(events)?.as_bytes())?;
+impl Event {
+    /// A convenience wrapper for creating a new event targeting a given stream. Note that aggregates are
+    /// the components that care about streams, all others declare their interest on a per-event basis
+    pub fn new(event_type: &str, stream: &str, payload: impl Serialize) -> Event {
+        Event {
+            event_type: event_type.to_string(),
+            stream: stream.to_string(),
+            payload: serde_json::to_vec(&payload).unwrap_or_default(),
+        }
+    }
+}
 
-    let mut file = File::create(output.join("cmd_index.md"))?;
-    file.write_all(render_command_list(commands)?.as_bytes())?;
+impl OutputCommand {
+    /// Convenience method for creating an output command from a process manager handler
+    pub fn new(cmd_type: &str, payload: &impl Serialize, stream: &str, key: &str) -> Self {
+        OutputCommand {
+            aggregate_key: key.to_string(),
+            aggregate_stream: stream.to_string(),
+            command_type: cmd_type.to_string(),
+            json_payload: serde_json::to_vec(payload).unwrap_or_default(),
+        }
+    }
+}
 
-    let mut file = File::create(output.join("pm_index.md"))?;
-    file.write_all(render_pm_list(pms)?.as_bytes())?;
+// Convenience in case someone wants to call `into` to convert a `Result` into a `StatelessAck`
 
-    let mut file = File::create(output.join("proj_index.md"))?;
-    file.write_all(render_projector_list(projectors)?.as_bytes())?;
+impl Into<StatelessAck> for Result<(), RpcError> {
+    fn into(self) -> StatelessAck {
+        match self {
+            Ok(_) => StatelessAck::ok(),
+            Err(e) => StatelessAck::error(e.to_string()),
+        }
+    }
+}
 
-    let mut file = File::create(output.join("notifier_index.md"))?;
-    file.write_all(render_notifier_list(notifiers)?.as_bytes())?;
+impl StatelessAck {
+    /// Acknowledges a successful stateless handler completion
+    pub fn ok() -> Self {
+        Self {
+            error: None,
+            succeeded: true,
+        }
+    }
 
-    Ok(())
-}                               
+    /// Indicates a failure to process an inbound entity by a stateless handler
+    pub fn error(msg: String) -> Self {
+        Self {
+            error: Some(msg),
+            succeeded: false,
+        }
+    }
+}
+
+fn serialize_json<T: Serialize>(data: &T) -> RpcResult<Vec<u8>> {
+    serde_json::to_vec(data).map_err(|e| format!("Serialization failure: {e:?}").into())
+}

@@ -11,7 +11,7 @@ use wasmcloud_interface_logging::{debug, error};
 
 /// Creates a new AccountLedger instance with an initial transaction as a deposit,
 /// sets the current balance to the initial amount
-pub fn initialize_account(event: AccountCreated) -> RpcResult<()> {
+pub async fn initialize_account(event: AccountCreated) -> RpcResult<()> {
     debug!("Initializing account {}", event.account_number);
     let kv = KeyValueSender::new();
 
@@ -25,55 +25,53 @@ pub fn initialize_account(event: AccountCreated) -> RpcResult<()> {
 
     // set the current balance
     let balance_key = format!("balance.{account_number}");
-    futures::executor::block_on(async {
-        set(&ctx, &kv, ledger_key, ledger_json).await;
-        set(&ctx, &kv, balance_key, event.initial_balance.to_string()).await
-    });
+
+    set(&ctx, &kv, ledger_key, ledger_json).await;
+    set(&ctx, &kv, balance_key, event.initial_balance.to_string()).await;
 
     Ok(())
 }
 
 /// Records a deposit by adding a `LedgerLine` to the end of the previously stored
 /// ledger and recording the new balance.
-pub fn record_deposit(event: FundsDeposited) -> RpcResult<()> {
+pub async fn record_deposit(event: FundsDeposited) -> RpcResult<()> {
     debug!("Recording deposit in account {}", event.account_number);
     let account_number = event.account_number.to_string();
     let ctx = Context::default();
 
     let kv = KeyValueSender::new();
     let ledger_key = format!("ledger.{account_number}");
-    futures::executor::block_on(async {
-        let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
-            serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
-                let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
-                ledger.ledger_lines.push(LedgerLine {
-                    amount: event.amount,
-                    tx_type: TransactionType::Deposit,
-                    effective_balance: last_balance + event.amount,
-                });
-                ledger
-            })
-        });
-        if let Some(Ok(ledger)) = new_ledger {
-            let new_balance = ledger
-                .ledger_lines
-                .last()
-                .map(|l| l.effective_balance)
-                .unwrap_or(0);
-            set_ledger(&ctx, &kv, ledger_key, ledger).await;
-            let balance_key = format!("balance.{account_number}");
-            set(&ctx, &kv, balance_key, new_balance.to_string()).await;
-        } else {
-            error!("Unable to save projection for deposit on account {account_number}");
-        }
+
+    let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
+        serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
+            let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
+            ledger.ledger_lines.push(LedgerLine {
+                amount: event.amount,
+                tx_type: TransactionType::Deposit,
+                effective_balance: last_balance + event.amount,
+            });
+            ledger
+        })
     });
+    if let Some(Ok(ledger)) = new_ledger {
+        let new_balance = ledger
+            .ledger_lines
+            .last()
+            .map(|l| l.effective_balance)
+            .unwrap_or(0);
+        set_ledger(&ctx, &kv, ledger_key, ledger).await;
+        let balance_key = format!("balance.{account_number}");
+        set(&ctx, &kv, balance_key, new_balance.to_string()).await;
+    } else {
+        error!("Unable to save projection for deposit on account {account_number}");
+    }
 
     Ok(())
 }
 
 /// Records a withdrawal from an account by adding a withdrawal ledger item to the
 /// ledger and recording the new balance
-pub fn record_withdrawal(event: FundsWithdrawn) -> RpcResult<()> {
+pub async fn record_withdrawal(event: FundsWithdrawn) -> RpcResult<()> {
     debug!("Recording withdrawal in account {}", event.account_number);
     let account_number = event.account_number.to_string();
 
@@ -85,38 +83,36 @@ pub fn record_withdrawal(event: FundsWithdrawn) -> RpcResult<()> {
     // Note:the aggregate would prevent the creation of an event that would violate
     // business rules, so we can safely do the subtraction here without any guards
 
-    futures::executor::block_on(async {
-        let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
-            serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
-                let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
-                ledger.ledger_lines.push(LedgerLine {
-                    amount: event.amount,
-                    tx_type: TransactionType::Withdrawal,
-                    effective_balance: last_balance - event.amount,
-                });
-                ledger
-            })
-        });
-        if let Some(Ok(ledger)) = new_ledger {
-            let new_balance = ledger
-                .ledger_lines
-                .last()
-                .map(|l| l.effective_balance)
-                .unwrap_or(0);
-            set_ledger(&ctx, &kv, ledger_key, ledger).await;
-            let balance_key = format!("balance.{account_number}");
-            set(&ctx, &kv, balance_key, new_balance.to_string()).await;
-        } else {
-            error!("Unable to save projection for withdrawal on account {account_number}");
-        }
+    let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
+        serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
+            let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
+            ledger.ledger_lines.push(LedgerLine {
+                amount: event.amount,
+                tx_type: TransactionType::Withdrawal,
+                effective_balance: last_balance - event.amount,
+            });
+            ledger
+        })
     });
+    if let Some(Ok(ledger)) = new_ledger {
+        let new_balance = ledger
+            .ledger_lines
+            .last()
+            .map(|l| l.effective_balance)
+            .unwrap_or(0);
+        set_ledger(&ctx, &kv, ledger_key, ledger).await;
+        let balance_key = format!("balance.{account_number}");
+        set(&ctx, &kv, balance_key, new_balance.to_string()).await;
+    } else {
+        error!("Unable to save projection for withdrawal on account {account_number}");
+    }
 
     Ok(())
 }
 
 /// Records a reservation of funds by adding a funds reserved transaction to the end of the
 /// ledger and recording the newly adjusted balance
-pub fn record_funds_reserved(event: WireFundsReserved) -> RpcResult<()> {
+pub async fn record_funds_reserved(event: WireFundsReserved) -> RpcResult<()> {
     debug!(
         "Recording funds reservation (interbank) in account {}",
         event.account_number
@@ -127,38 +123,36 @@ pub fn record_funds_reserved(event: WireFundsReserved) -> RpcResult<()> {
     let kv = KeyValueSender::new();
     let ledger_key = format!("ledger.{account_number}");
 
-    futures::executor::block_on(async {
-        let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
-            serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
-                let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
-                ledger.ledger_lines.push(LedgerLine {
-                    amount: event.amount,
-                    tx_type: TransactionType::FundsReserve,
-                    effective_balance: last_balance - event.amount,
-                });
-                ledger
-            })
-        });
-        if let Some(Ok(ledger)) = new_ledger {
-            let new_balance = ledger
-                .ledger_lines
-                .last()
-                .map(|l| l.effective_balance)
-                .unwrap_or(0);
-            set_ledger(&ctx, &kv, ledger_key, ledger).await;
-            let balance_key = format!("balance.{account_number}");
-            set(&ctx, &kv, balance_key, new_balance.to_string()).await;
-        } else {
-            error!("Unable to save projection for withdrawal on account {account_number}");
-        }
+    let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
+        serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
+            let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
+            ledger.ledger_lines.push(LedgerLine {
+                amount: event.amount,
+                tx_type: TransactionType::FundsReserve,
+                effective_balance: last_balance - event.amount,
+            });
+            ledger
+        })
     });
+    if let Some(Ok(ledger)) = new_ledger {
+        let new_balance = ledger
+            .ledger_lines
+            .last()
+            .map(|l| l.effective_balance)
+            .unwrap_or(0);
+        set_ledger(&ctx, &kv, ledger_key, ledger).await;
+        let balance_key = format!("balance.{account_number}");
+        set(&ctx, &kv, balance_key, new_balance.to_string()).await;
+    } else {
+        error!("Unable to save projection for withdrawal on account {account_number}");
+    }
 
     Ok(())
 }
 
 /// Releases previously reserved funds by adding a funds released transaction to the end
 /// of the ledger and recording the updated balance
-pub fn release_reserved_funds(event: WireFundsReleased) -> RpcResult<()> {
+pub async fn release_reserved_funds(event: WireFundsReleased) -> RpcResult<()> {
     debug!(
         "Recording funds release (interbank) in account {}",
         event.account_number
@@ -169,31 +163,29 @@ pub fn release_reserved_funds(event: WireFundsReleased) -> RpcResult<()> {
     let ledger_key = format!("ledger.{account_number}");
     let ctx = Context::default();
 
-    futures::executor::block_on(async {
-        let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
-            serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
-                let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
-                ledger.ledger_lines.push(LedgerLine {
-                    amount: event.amount,
-                    tx_type: TransactionType::FundsRelease,
-                    effective_balance: last_balance + event.amount,
-                });
-                ledger
-            })
-        });
-        if let Some(Ok(ledger)) = new_ledger {
-            let new_balance = ledger
-                .ledger_lines
-                .last()
-                .map(|l| l.effective_balance)
-                .unwrap_or(0);
-            set_ledger(&ctx, &kv, ledger_key, ledger).await;
-            let balance_key = format!("balance.{account_number}");
-            set(&ctx, &kv, balance_key, new_balance.to_string()).await;
-        } else {
-            error!("Unable to save projection for withdrawal on account {account_number}");
-        }
+    let new_ledger = get(&ctx, &kv, &ledger_key).await.map(|ledger_raw| {
+        serde_json::from_str::<AccountLedger>(&ledger_raw).map(|mut ledger| {
+            let last_balance = ledger.ledger_lines.last().unwrap().effective_balance;
+            ledger.ledger_lines.push(LedgerLine {
+                amount: event.amount,
+                tx_type: TransactionType::FundsRelease,
+                effective_balance: last_balance + event.amount,
+            });
+            ledger
+        })
     });
+    if let Some(Ok(ledger)) = new_ledger {
+        let new_balance = ledger
+            .ledger_lines
+            .last()
+            .map(|l| l.effective_balance)
+            .unwrap_or(0);
+        set_ledger(&ctx, &kv, ledger_key, ledger).await;
+        let balance_key = format!("balance.{account_number}");
+        set(&ctx, &kv, balance_key, new_balance.to_string()).await;
+    } else {
+        error!("Unable to save projection for withdrawal on account {account_number}");
+    }
 
     Ok(())
 }

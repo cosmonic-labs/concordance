@@ -1,0 +1,53 @@
+{
+    "$id": "https://example.com/person.schema.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConstructionBegan",
+    "type": "object",
+    "properties": {
+     "buildingId": {
+        "type": "string",
+        "description": "A globally unique identifier to be used for this construction site and the resulting building"
+     },
+     "tick": {
+        "type": "integer",
+        "description": "Time index in which the event occurred"
+     },
+      "colonyId": {
+        "type": "string",
+        "description": "ID of the colony in which the construction began"
+      },      
+      "moonId": {
+        "type": "string",
+        "description": "ID of the moon on which the construction began"
+      },
+     "mothershipId": {
+        "type": "string",
+        "description": "Mothership ID"
+     },
+     "roverId": {
+        "type": "string",
+        "description": "Unique identifier of the rover that is initiating the construction"
+     },
+     "buildingType": {
+        "type": "string",
+        "enum": ["oxygen_extractor", "water_extractor", "power_station", "colonist_habitat", "hydroponics", "headquarters"]
+     },
+     "completionTicks": {
+        "type": "integer",
+        "description": "Number of clock-independent time slices until the construction is completed"
+     },
+     "location": {
+        "type": "object",
+        "properties": {
+            "x": {
+                "type": "integer",
+                "description": "X coordinate of the construction site"
+            },
+            "y": {
+                "type": "integer",
+                "description": "Y coordinate of the construction site"
+            }
+        }
+     } 
+    }
+}

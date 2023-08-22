@@ -1,0 +1,64 @@
+use concordance_gen::eventsourcing::*;
+
+use wasmcloud_interface_logging as walog;
+
+use wasmbus_rpc::actor::prelude::*;
+
+{{#each pm.inbound as |input|}}
+impl {{input.name}} {
+    pub const TYPE: &'static str = "{{method-name input.name}}";
+} 
+{{/each}}
+
+
+/// {{title-case pm.name}} Process Manager
+#[async_trait]
+pub trait {{traitname}}ProcessManager {
+    {{#if pm.inbound}}
+    // Inputs
+    {{#each pm.inbound as |input|}}
+    async fn handle_{{method-name input.name}}(&self, input: {{input.name}}, state: Option<{{../traitname}}ProcessManagerState>) -> RpcResult<ProcessManagerAck>;
+    {{/each}}
+    {{/if}}   
+}
+
+
+#[derive(Debug, Default, Actor, HealthResponder)]
+#[services(Actor, {{impltype}}Service)]
+pub(crate) struct {{traitname}}{{impltype}}Impl {}
+
+#[async_trait]
+impl {{impltype}}Service for {{traitname}}{{impltype}}Impl {
+    
+    async fn handle_event(&self, _ctx: &Context, arg: &EventWithState) -> RpcResult<ProcessManagerAck> {
+        let state: Option<{{traitname}}{{impltype}}State> = arg
+         .state
+         .clone()
+         .map(|bytes| deserialize_json(&bytes).unwrap_or_default());
+
+        Ok(match arg.event.event_type.as_str() {
+            {{#each pm.inbound_events as |input|}}
+            {{input.name}}::TYPE => {
+                {{../traitname}}{{../impltype}}::handle_{{method-name input.name}}(
+                    self,
+                    deserialize_json(&arg.event.payload)?,                    
+                    state).await?
+                },
+            {{/each}}
+            e =>  {
+               walog::debug!("Unexpected event received '{e}'. Acking and moving on - Is interest configured properly??");
+               ProcessManagerAck::ok(state, vec![])
+            }
+        })
+    }
+}
+
+fn deserialize_json<'de, T: Deserialize<'de>>(
+    buf: &'de [u8],
+) -> RpcResult<T> {
+    serde_json::from_slice(buf).map_err(|e| format!("Deserialization failure: {e:?}").into())
+}
+
+fn serialize_json<T: Serialize>(data: &T) -> RpcResult<Vec<u8>> {
+    serde_json::to_vec(data).map_err(|e| format!("Serialization failure: {e:?}").into())
+}

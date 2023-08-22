@@ -1,0 +1,21 @@
+[package]
+name = "concordance-gen-macro"
+version = "0.1.0"
+edition = "2021"
+authors = ["Cosmonic Team"]
+repository = "https://github.com/cosmonic/concordance"
+homepage = "https://github.com/cosmonic/concordance"
+description = """
+A procedural macro for generating concordance implementations for event sourcing primitives
+"""
+
+
+[lib]
+proc-macro = true
+doctest = false
+test = false
+
+[dependencies]
+proc-macro2 = "1.0"
+syn = "2.0"
+concordance-gen-core = { path = "../concordance-gen-core"}
