@@ -1,0 +1,33 @@
+{
+    "$id": "https://cosmonic.com/concordance/bankaccount/WireTransferFailed.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "WireTransferFailed",
+    "type": "object",
+    "properties": {        
+      "note": {
+        "type": "string",
+        "description": "An optional note describing the reason for failure"
+      },    
+      "wireTransferId": {
+        "type": "string",
+        "description": "A unique ID identifying the wire transfer transaction"
+      },
+      "targetRoutingNumber": {
+        "type": "string",
+        "description": "The routing number of the target bank"
+      },
+      "targetAccountNumber": {
+        "type": "string",
+        "description": "The account number of the target account"
+      }
+    },
+    "required": [
+      "accountNumber",
+      "amount",
+      "customerId",
+      "wireTransferId",
+      "targetRoutingNumber",
+      "targetAccountNumber"
+    ]
+  }
+  

@@ -1,17 +1,67 @@
-use bankaccount_model::commands::*;
-use bankaccount_model::events::*;
-use bankaccount_model::state::*;
-
 use serde::{Deserialize, Serialize};
 
-const STREAM: &str = "bankaccount";
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct WireTransferProcessManagerState {
+    pub placeholder: u16,
+}
 
 concordance_gen::generate!({
-    path: "../bankaccount-model.ttl",
+    path: "../eventcatalog",
     role: "process_manager",
-    entity: "bankaccount"
+    entity: "wire transfer"
 });
 
+#[async_trait]
+impl WireTransferProcessManager for WireTransferProcessManagerImpl {
+    async fn handle_funds_released(
+        &self,
+        input: FundsReleased,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+
+    async fn handle_funds_committed(
+        &self,
+        input: FundsCommitted,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+
+    async fn handle_funds_reserved(
+        &self,
+        input: FundsReserved,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+
+    async fn handle_wire_transfer_succeeded(
+        &self,
+        input: WireTransferSucceeded,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+
+    async fn handle_wire_transfer_initiated(
+        &self,
+        input: WireTransferInitiated,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+
+    async fn handle_wire_transfer_failed(
+        &self,
+        input: WireTransferFailed,
+        _state: Option<WireTransferProcessManagerState>,
+    ) -> RpcResult<ProcessManagerAck> {
+        todo!()
+    }
+}
+/*
 impl BankaccountProcessManager for BankaccountProcessManagerImpl {
     /// Initiates a new process for managing wire transfers
     fn handle_wire_transfer_requested(
@@ -110,3 +160,5 @@ impl BankaccountProcessManager for BankaccountProcessManagerImpl {
         todo!()
     }
 }
+
+*/

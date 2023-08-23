@@ -1,14 +1,37 @@
-use bankaccount_model::events::*;
-
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use wasmcloud_interface_logging::{debug, error};
 
 concordance_gen::generate!({
-    path: "../bankaccount-model.ttl",
+    path: "../eventcatalog",
     role: "projector",
-    entity: "bankaccount"
+    entity: "bank account"
 });
 
-mod store;
+#[async_trait]
+impl BankAccountProjector for BankAccountProjectorImpl {
+    async fn handle_account_created(&self, input: AccountCreated) -> Result<()> {
+        todo!()
+    }
+
+    async fn handle_funds_deposited(&self, input: FundsDeposited) -> Result<()> {
+        todo!()
+    }
+
+    async fn handle_funds_reserved(&self, input: FundsReserved) -> Result<()> {
+        todo!()
+    }
+
+    async fn handle_funds_withdrawn(&self, input: FundsWithdrawn) -> Result<()> {
+        todo!()
+    }
+
+    async fn handle_wire_transfer_initiated(&self, input: WireTransferInitiated) -> Result<()> {
+        todo!()
+    }
+}
+
+/*
 
 #[async_trait]
 impl BankaccountProjector for BankaccountProjectorImpl {
@@ -51,3 +74,5 @@ impl BankaccountProjector for BankaccountProjectorImpl {
         Ok(())
     }
 }
+
+*/

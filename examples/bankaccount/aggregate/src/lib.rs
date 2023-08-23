@@ -1,20 +1,134 @@
-use bankaccount_model::commands::*;
-use bankaccount_model::events::*;
-use bankaccount_model::state::*;
-
-use anyhow::Result;
-use concordance_gen::eventsourcing::Event;
 use serde::{Deserialize, Serialize};
-use wasmcloud_interface_logging::error;
+use wasmcloud_interface_logging::{debug, error};
+
+//use lunarfrontiers_model::*;
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct BankAccountAggregateState {
+    pub placeholder: u16,
+}
 
 concordance_gen::generate!({
-    path: "../bankaccount-model.ttl",
+    path: "../eventcatalog",
     role: "aggregate",
-    entity: "bankaccount"
+    entity: "bank account"
 });
 
-const STREAM: &str = "bankaccount";
+impl BankAccountAggregate for BankAccountAggregateImpl {
+    fn handle_reserve_funds(
+        &self,
+        input: ReserveFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
 
+    fn handle_release_funds(
+        &self,
+        input: ReleaseFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn handle_commit_funds(
+        &self,
+        input: CommitFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn handle_create_account(
+        &self,
+        input: CreateAccount,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn handle_withdraw_funds(
+        &self,
+        input: WithdrawFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn handle_wire_funds(
+        &self,
+        input: WireFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn handle_deposit_funds(
+        &self,
+        input: DepositFunds,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<EventList> {
+        todo!()
+    }
+
+    fn apply_account_created(
+        &self,
+        input: AccountCreated,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_funds_deposited(
+        &self,
+        input: FundsDeposited,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_funds_released(
+        &self,
+        input: FundsReleased,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_funds_committed(
+        &self,
+        input: FundsCommitted,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_funds_reserved(
+        &self,
+        input: FundsReserved,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_funds_withdrawn(
+        &self,
+        input: FundsWithdrawn,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+
+    fn apply_wire_transfer_initiated(
+        &self,
+        input: WireTransferInitiated,
+        state: Option<BankAccountAggregateState>,
+    ) -> anyhow::Result<StateAck> {
+        todo!()
+    }
+}
+
+const STREAM: &str = "bankaccount";
+/*
 impl BankaccountAggregate for BankaccountAggregateImpl {
     /* --- Command Handlers --- */
 
@@ -137,7 +251,7 @@ impl BankaccountAggregate for BankaccountAggregateImpl {
             );
             return Ok(vec![]);
         };
-        
+
         Ok(vec![Event::new(
             ReservedFundsWithdrawn::TYPE,
             STREAM,
@@ -376,3 +490,4 @@ impl BankaccountAggregate for BankaccountAggregateImpl {
         Ok(StateAck::ok(Some(state)))
     }
 }
+*/

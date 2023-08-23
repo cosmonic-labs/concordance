@@ -1,0 +1,22 @@
+{
+    "$id": "https://cosmonic.com/concordance/bankaccount/FundsCommitted.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FundsCommitted",
+    "type": "object",
+    "properties": {
+      "accountNumber": {
+        "type": "string",
+        "description": "The account number"
+      },         
+      "customerId": {
+        "type": "string",
+        "description": "The ID of the customer"
+      },
+      "wireTransferId": {
+        "type": "string",
+        "description": "A unique ID identifying the wire transfer transaction"
+      }
+    },
+    "required": ["accountNumber", "customerId", "wireTransferId"]
+  }
+  

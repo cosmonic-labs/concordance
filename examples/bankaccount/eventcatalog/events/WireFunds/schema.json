@@ -1,0 +1,44 @@
+{
+  "$id": "https://cosmonic.com/concordance/bankaccount/WireFunds.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WireFunds",
+  "type": "object",
+  "properties": {
+    "accountNumber": {
+      "type": "string",
+      "description": "The source account number"
+    },
+    "amount": {
+      "type": "integer",
+      "description": "The amount to be transferred to the target account"
+    },
+    "note": {
+      "type": "string",
+      "description": "An optional note to be associated with the wire transfer"
+    },
+    "customerId": {
+      "type": "string",
+      "description": "The ID of the customer performing the transfer"
+    },
+    "wireTransactionId": {
+      "type": "string",
+      "description": "A unique ID identifying the wire transfer transaction"
+    },
+    "targetRoutingNumber": {
+      "type": "string",
+      "description": "The routing number of the target bank"
+    },
+    "targetAccountNumber": {
+      "type": "string",
+      "description": "The account number of the target account"
+    }
+  },
+  "required": [
+    "accountNumber",
+    "amount",
+    "customerId",
+    "wireTransactionId",
+    "targetRoutingNumber",
+    "targetAccountNumber"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+    "$id": "https://cosmonic.com/concordance/bankaccount/AccountCreated.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AccountCreated",
+    "type": "object",
+    "properties": {
+      "accountNumber": {
+        "type": "string",
+        "description": "The account number of the new account"
+      },
+      "minBalance": {
+        "type": "integer",
+        "description": "The minimum required maintenance balance for the account"
+      },
+      "initialBalance": {
+        "type": "integer",
+        "description": "Initial deposit amount for the account"
+      },
+      "customerId": {
+        "type": "string",
+        "description": "The ID of the customer"
+      }
+    },
+    "required": ["accountNumber",  "customerId"]
+  }
+  
