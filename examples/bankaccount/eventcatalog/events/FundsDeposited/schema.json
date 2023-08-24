@@ -1,0 +1,26 @@
+{
+    "$id": "https://cosmonic.com/concordance/bankaccount/FundsDeposited.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FundsDeposited",
+    "type": "object",
+    "properties": {
+      "accountNumber": {
+        "type": "string",
+        "description": "The account number"
+      },
+      "amount": {
+        "type": "integer",
+        "description": "The amount deposited"
+      },
+      "note": {
+        "type": "string",
+        "description": "An optional note to associated with the deposit"
+      },
+      "customerId": {
+        "type": "string",
+        "description": "The ID of the customer that performed the deposit"
+      }      
+    },
+    "required": ["accountNumber", "amount", "customerId"]
+  }
+  

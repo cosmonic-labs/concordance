@@ -1,0 +1,26 @@
+{
+    "$id": "https://cosmonic.com/concordance/bankaccount/FundsWithdrawn.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FundsWithdrawn",
+    "type": "object",
+    "properties": {
+      "accountNumber": {
+        "type": "string",
+        "description": "The account number"
+      },
+      "amount": {
+        "type": "integer",
+        "description": "The amount withdrawn"
+      },
+      "note": {
+        "type": "string",
+        "description": "An optional note associated with the withdrawal"
+      },
+      "customerId": {
+        "type": "string",
+        "description": "The ID of the customer that performed the withdrawal"
+      }    
+    },
+    "required": ["accountNumber", "amount", "customerId"]
+  }
+  
