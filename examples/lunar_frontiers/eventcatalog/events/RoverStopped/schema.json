@@ -35,7 +35,9 @@
                 "type": "integer",
                 "description": "Y coordinate of the rover"
             }
-        }
+        },
+        "required": ["x", "y"]
      }
-    }
+    },
+    "required": ["tick", "colonyId", "moonId", "mothershipId", "roverId", "position"]
 }

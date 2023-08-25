@@ -1,13 +1,9 @@
 {
     "$id": "https://example.com/person.schema.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "RoverDestinationChanged",
+    "title": "ChangeDestination",
     "type": "object",
-    "properties": {     
-     "tick": {
-        "type": "integer",
-        "description": "Time index in which the event occurred"
-     },
+    "properties": {          
       "colonyId": {
         "type": "string",
         "description": "ID of the colony"

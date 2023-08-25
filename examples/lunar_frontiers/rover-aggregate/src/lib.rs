@@ -1,12 +1,12 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use wasmcloud_interface_logging::{debug, error};
+use wasmcloud_interface_logging::error;
 
-//use lunarfrontiers_model::*;
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct RoverAggregateState {
-    pub placeholder: u16,
-}
+mod commands;
+mod events;
+mod state;
+
+use state::RoverAggregateState;
 
 concordance_gen::generate!({
     path: "../eventcatalog",
@@ -20,17 +20,27 @@ impl RoverAggregate for RoverAggregateImpl {
     fn handle_initialize_rover(
         &self,
         input: InitializeRover,
+        _state: Option<RoverAggregateState>,
+    ) -> Result<EventList> {
+        commands::initialize_rover(input)
+    }
+
+    fn handle_change_destination(
+        &self,
+        input: ChangeDestination,
         state: Option<RoverAggregateState>,
     ) -> Result<EventList> {
-        todo!()
+        commands::change_destination(input, state)
     }
+
+    // -- EVENTS --
 
     fn apply_rover_initialized(
         &self,
         input: RoverInitialized,
-        state: Option<RoverAggregateState>,
+        _state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_rover_initialized(input)
     }
 
     fn apply_rover_destination_changed(
@@ -38,7 +48,7 @@ impl RoverAggregate for RoverAggregateImpl {
         input: RoverDestinationChanged,
         state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_destination_changed(input, state)
     }
 
     fn apply_rover_destination_reached(
@@ -46,7 +56,7 @@ impl RoverAggregate for RoverAggregateImpl {
         input: RoverDestinationReached,
         state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_destination_reached(input, state)
     }
 
     fn apply_rover_stopped(
@@ -54,7 +64,7 @@ impl RoverAggregate for RoverAggregateImpl {
         input: RoverStopped,
         state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_rover_stopped(input, state)
     }
 
     fn apply_rover_started(
@@ -62,7 +72,7 @@ impl RoverAggregate for RoverAggregateImpl {
         input: RoverStarted,
         state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_rover_started(input, state)
     }
 
     fn apply_rover_position_changed(
@@ -70,6 +80,6 @@ impl RoverAggregate for RoverAggregateImpl {
         input: RoverPositionChanged,
         state: Option<RoverAggregateState>,
     ) -> Result<StateAck> {
-        todo!()
+        events::apply_position_changed(input, state)
     }
 }
