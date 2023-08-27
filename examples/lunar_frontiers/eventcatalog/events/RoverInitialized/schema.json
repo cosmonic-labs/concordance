@@ -4,6 +4,10 @@
     "title": "RoverInitialized",
     "type": "object",
     "properties": {
+      "tick": {
+        "type": "integer",
+        "description": "The tick at which the rover was initialized"
+      },
       "roverId": {
         "type": "string",
         "description": "A globally unique ID for this rover"
@@ -20,7 +24,8 @@
                 "type": "integer",
                 "description": "The y coordinate of the grid"
             }
-        }
+        },
+        "required": ["x", "y"]
       },
       "moonId": {
         "type": "string",
@@ -35,5 +40,6 @@
         "description": "The globally unique ID of the mothership that deployed this rover",
         "type": "string"
       }
-    }
+    },
+    "required": ["tick", "roverId", "position", "moonId", "pilotKey", "mothershipId"]
 }

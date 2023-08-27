@@ -1,9 +1,8 @@
+use anyhow::Result;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use wasmcloud_interface_logging::error;
-
-type Result<T> = anyhow::Result<T>;
 
 mod commands;
 mod events;
