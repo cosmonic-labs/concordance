@@ -5,6 +5,7 @@ version: 0.0.1
 consumers:
     - 'Bank Account Aggregate'
     - 'Wire Transfer Process Manager'
+    - 'Bank Account Projector'
 producers:
     - 'Bank Account Aggregate'
 tags:

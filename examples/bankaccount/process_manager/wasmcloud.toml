@@ -1,0 +1,6 @@
+name = "Bank Account Process Manager"
+language = "rust"
+type = "actor"
+
+[actor]
+claims = ["cosmonic:eventsourcing", "wasmcloud:builtin:logging"]    

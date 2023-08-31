@@ -420,7 +420,6 @@ dependencies = [
  "Inflector",
  "anyhow",
  "handlebars",
- "rdf",
  "rust-embed",
  "schemars",
  "serde",
@@ -1495,12 +1494,6 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
 ]
-
-[[package]]
-name = "rdf"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb1725bf0133fe4a3279e18efd6d69f952cb8356bf8b835023042e1b98d4c646"
 
 [[package]]
 name = "redox_syscall"

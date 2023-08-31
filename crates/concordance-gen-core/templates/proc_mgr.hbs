@@ -9,6 +9,11 @@ impl {{input.name}} {
     pub const TYPE: &'static str = "{{method-name input.name}}";
 } 
 {{/each}}
+{{#each pm.outbound as |output|}}
+impl {{output.name}} {
+    pub const TYPE: &'static str = "{{method-name output.name}}";
+} 
+{{/each}}
 
 
 /// {{title-case pm.name}} Process Manager

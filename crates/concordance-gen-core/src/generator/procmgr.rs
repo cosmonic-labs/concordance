@@ -37,7 +37,7 @@ pub(crate) fn render(
         .map_err(|e| anyhow::anyhow!("Template render failure: {}", e))?;
 
     let mut structs = Vec::new();
-    let all = procmgr.inbound.clone();
+    let all = procmgr.inbound.iter().chain(procmgr.outbound.iter());
 
     for entity in all {
         if let Some(schema) = catalog.schemas.get(&entity.name) {
