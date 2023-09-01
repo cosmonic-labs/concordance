@@ -1,10 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct WireTransferProcessManagerState {
-    pub placeholder: u16,
-}
-
 concordance_gen::generate!({
     path: "../eventcatalog",
     role: "process_manager",
@@ -15,34 +10,70 @@ concordance_gen::generate!({
 impl WireTransferProcessManager for WireTransferProcessManagerImpl {
     async fn handle_funds_released(
         &self,
-        input: FundsReleased,
+        _input: FundsReleased,
         _state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        todo!()
+        // release of funds is the termination of a transfer process
+        Ok(ProcessManagerAck::ok(
+            None::<WireTransferProcessManagerState>,
+            vec![],
+        ))
     }
-
+    
     async fn handle_funds_committed(
         &self,
-        input: FundsCommitted,
+        _input: FundsCommitted,
         _state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        todo!()
+        // commitment of funds is the termination of a transfer process
+        Ok(ProcessManagerAck::ok(
+            None::<WireTransferProcessManagerState>,
+            vec![],
+        ))
     }
 
     async fn handle_funds_reserved(
         &self,
-        input: FundsReserved,
-        _state: Option<WireTransferProcessManagerState>,
+        _input: FundsReserved,
+        state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        todo!()
+        let Some(mut state) = state else {
+            return Ok(ProcessManagerAck::ok(
+                None::<WireTransferProcessManagerState>,
+                vec![],
+            ));
+        };
+        state.status = TransferStatus::FundsReserved;
+        Ok(ProcessManagerAck::ok(Some(state), vec![]))
     }
 
     async fn handle_wire_transfer_succeeded(
         &self,
         input: WireTransferSucceeded,
-        _state: Option<WireTransferProcessManagerState>,
+        state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        todo!()
+        let Some(mut state) = state else {
+            return Ok(ProcessManagerAck::ok(
+                None::<WireTransferProcessManagerState>,
+                vec![],
+            ));
+        };
+        state.status = TransferStatus::TransferCompleted;
+        let cmd = CommitFunds {
+            account_number: state.account_number.to_string(),
+            customer_id: state.customer_id.to_string(),
+            wire_transfer_id: input.wire_transfer_id.to_string(),
+        };
+
+        Ok(ProcessManagerAck::ok(
+            Some(state),
+            vec![OutputCommand::new(
+                CommitFunds::TYPE,
+                &cmd,
+                STREAM,
+                &cmd.account_number,
+            )],
+        ))
     }
 
     async fn handle_wire_transfer_initiated(
@@ -50,35 +81,17 @@ impl WireTransferProcessManager for WireTransferProcessManagerImpl {
         input: WireTransferInitiated,
         _state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        todo!()
-    }
-
-    async fn handle_wire_transfer_failed(
-        &self,
-        input: WireTransferFailed,
-        _state: Option<WireTransferProcessManagerState>,
-    ) -> RpcResult<ProcessManagerAck> {
-        todo!()
-    }
-}
-/*
-impl BankaccountProcessManager for BankaccountProcessManagerImpl {
-    /// Initiates a new process for managing wire transfers
-    fn handle_wire_transfer_requested(
-        &self,
-        input: WireTransferRequested,
-        _state: Option<BankaccountProcessManagerState>,
-    ) -> RpcResult<ProcessManagerAck> {
-        let new_state = BankaccountProcessManagerState::new(&input);
+        let state = WireTransferProcessManagerState::new(&input);
 
         let cmd = ReserveFunds {
+            customer_id: input.customer_id,
             account_number: input.account_number,
             amount: input.amount,
             wire_transfer_id: input.wire_transfer_id.to_string(),
         };
 
         Ok(ProcessManagerAck::ok(
-            Some(new_state),
+            Some(state),
             vec![OutputCommand::new(
                 ReserveFunds::TYPE,
                 &cmd,
@@ -88,77 +101,75 @@ impl BankaccountProcessManager for BankaccountProcessManagerImpl {
         ))
     }
 
-    fn handle_wire_funds_reserved(
+    async fn handle_wire_transfer_failed(
         &self,
-        event: WireFundsReserved,
-        state: Option<BankaccountProcessManagerState>,
+        input: WireTransferFailed,
+        state: Option<WireTransferProcessManagerState>,
     ) -> RpcResult<ProcessManagerAck> {
-        let state = state.unwrap_or_default();
-        let state = BankaccountProcessManagerState {
-            status: TransferStatus::FundsReserved,
-            ..state
+        let Some(state) = state else {
+            return Ok(ProcessManagerAck::ok(
+                None::<WireTransferProcessManagerState>,
+                vec![],
+            ));
         };
-
-        let cmd = InitiateInterbankTransfer {
-            account_number: event.account_number,
-            amount: event.amount,
-            wire_transfer_id: event.wire_transfer_id,
-            expiration_in_days: 3, // this doesn't do anything, it's just an example of augmenting domain-specific data on a cmd
-            target_account_number: state.target_account_number.to_string(),
-            target_routing_number: state.target_routing_number.to_string(),
+        let cmd = ReleaseFunds {
+            account_number: state.account_number.to_string(),
+            customer_id: state.customer_id.to_string(),
+            wire_transfer_id: input.wire_transfer_id.to_string(),
         };
-
         Ok(ProcessManagerAck::ok(
             Some(state),
             vec![OutputCommand::new(
-                InitiateInterbankTransfer::TYPE,
+                ReleaseFunds::TYPE,
                 &cmd,
                 STREAM,
                 &cmd.account_number,
             )],
         ))
     }
+}
 
-    fn handle_interbank_transfer_completed(
-        &self,
-        input: InterbankTransferCompleted,
-        state: Option<BankaccountProcessManagerState>,
-    ) -> RpcResult<ProcessManagerAck> {
-        let state = state.unwrap_or_default();
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WireTransferProcessManagerState {
+    pub wire_transfer_id: String,
+    pub account_number: String,
+    pub customer_id: String,
+    pub amount: u32,
+    pub target_routing_number: String,
+    pub target_account_number: String,
+    pub status: TransferStatus,
+}
 
-        let cmd = WithdrawReservedFunds {
-            account_number: state.account_number.to_string(),
-            wire_transfer_id: input.wire_transfer_id.to_string(),
-            amount: state.amount,
-        };
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub enum TransferStatus {
+    Requested,
+    FundsReserved,
+    TransferInitiated,
+    TransferCompleted,
+    TransferFailed,
+    #[default]
+    Unknown,
+}
 
-        // Returning `None` for the state here guarantees this process state is deleted
-        Ok(ProcessManagerAck::ok(
-            None::<BankaccountProcessManagerState>,
-            vec![OutputCommand::new(
-                WithdrawReservedFunds::TYPE,
-                &cmd,
-                STREAM,
-                &state.account_number,
-            )],
-        ))
-    }
-
-    fn handle_interbank_transfer_failed(
-        &self,
-        input: InterbankTransferFailed,
-        state: Option<BankaccountProcessManagerState>,
-    ) -> RpcResult<ProcessManagerAck> {
-        todo!()
-    }
-
-    fn handle_interbank_transfer_initiated(
-        &self,
-        input: InterbankTransferInitiated,
-        state: Option<BankaccountProcessManagerState>,
-    ) -> RpcResult<ProcessManagerAck> {
-        todo!()
+impl WireTransferProcessManagerState {
+    pub fn to_bytes(self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap_or_default()
     }
 }
 
-*/
+impl WireTransferProcessManagerState {
+    pub fn new(event: &WireTransferInitiated) -> WireTransferProcessManagerState {
+        let event = event.clone();
+        WireTransferProcessManagerState {
+            wire_transfer_id: event.wire_transfer_id,
+            account_number: event.account_number,
+            customer_id: event.customer_id,
+            amount: event.amount as u32,
+            target_routing_number: event.target_routing_number,
+            target_account_number: event.target_account_number,
+            status: TransferStatus::Requested,
+        }
+    }
+}
+
+const STREAM: &str = "bankaccount";

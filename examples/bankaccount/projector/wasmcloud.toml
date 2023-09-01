@@ -1,0 +1,6 @@
+name = "Bank Account Projector"
+language = "rust"
+type = "actor"
+
+[actor]
+claims = ["cosmonic:eventsourcing", "wasmcloud:keyvalue", "wasmcloud:builtin:logging"]    

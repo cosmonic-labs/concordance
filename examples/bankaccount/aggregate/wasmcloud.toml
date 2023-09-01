@@ -1,0 +1,6 @@
+name = "Bank Account Aggregate"
+language = "rust"
+type = "actor"
+
+[actor]
+claims = ["cosmonic:eventsourcing", "wasmcloud:builtin:logging"]
