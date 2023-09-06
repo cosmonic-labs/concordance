@@ -52,11 +52,10 @@ spec:
               ROLE: process_manager
               KEY: wireTransferId
               INTEREST: '{"start":"wire_transfer_initiated","advance":["funds_reserved","wire_transfer_succeeded","wire_transfer_failed"],"stop":["funds_committed","funds_released"]}'
-
-    # This provider isn't yet in a publicly accessible repository
+    
     - name: concordance
       type: capability
       properties:
         contract: cosmonic:eventsourcing
-        image: wasmcloud.azurecr.io/concordance:0.1.0
+        image: registry.hub.docker.com/cosmonic/concordance:0.1.0
         link_name: default
