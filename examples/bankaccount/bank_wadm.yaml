@@ -1,0 +1,62 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: bank-account
+  annotations:
+    version: v0.0.1
+    description: "A concordance bank account example"
+spec:
+  components:
+    - name: projector
+      type: actor
+      properties:
+        image: file://./projector/build/bankaccount_projector_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1            
+        - type: linkdef
+          properties:
+            target: concordance
+            values:
+              ROLE: projector
+              INTEREST: account_created,funds_deposited,funds_released,funds_reserved,funds_withdrawn,wire_transfer_initiated
+    - name: aggregate
+      type: actor
+      properties:
+        image:  file://./aggregate/build/bankaccount_aggregate_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1
+        - type: linkdef
+          properties:
+            target: concordance
+            values:
+              ROLE: aggregate
+              INTEREST: bankaccount
+              NAME: bankaccount
+              KEY: account_number
+    - name: processmanager
+      type: actor
+      properties:
+        image: file://.process_manager/build/wiretransfer_processmanager_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1
+        - type: linkdef
+          properties:
+            target: concordance
+            values:
+              ROLE: process_manager
+              KEY: wireTransferId
+              INTEREST: '{"start":"wire_transfer_initiated","advance":["funds_reserved","wire_transfer_succeeded","wire_transfer_failed"],"stop":["funds_committed","funds_released"]}'
+
+    # This provider isn't yet in a publicly accessible repository
+    - name: concordance
+      type: capability
+      properties:
+        contract: cosmonic:eventsourcing
+        image: wasmcloud.azurecr.io/concordance:0.1.0
+        link_name: default
