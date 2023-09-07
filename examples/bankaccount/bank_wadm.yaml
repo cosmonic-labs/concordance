@@ -21,6 +21,12 @@ spec:
             values:
               ROLE: projector
               INTEREST: account_created,funds_deposited,funds_released,funds_reserved,funds_withdrawn,wire_transfer_initiated
+        - type: linkdef
+          properties:
+            target: redis
+            values:
+              URL: redis://redis:6379
+
     - name: aggregate
       type: actor
       properties:
@@ -37,6 +43,7 @@ spec:
               INTEREST: bankaccount
               NAME: bankaccount
               KEY: account_number
+              
     - name: processmanager
       type: actor
       properties:
@@ -59,3 +66,9 @@ spec:
         contract: cosmonic:eventsourcing
         image: registry.hub.docker.com/cosmonic/concordance:0.1.0
         link_name: default
+
+    - name: redis
+     type: capability
+     properties:
+       image: wasmcloud.azurecr.io/kvredis:0.21.0
+       contract: wasmcloud:keyvalue
