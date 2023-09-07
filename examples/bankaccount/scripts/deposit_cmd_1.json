@@ -3,9 +3,9 @@
     "key": "ABC123", 
     "data": 
         {
-            "account_number": "ABC123", 
+            "accountNumber": "ABC123", 
             "amount": 3000,
             "note": "cash deposit",
-            "customer_id": "CUSTBOB"
+            "customerId": "CUSTBOB"
         }
 }

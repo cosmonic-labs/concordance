@@ -3,9 +3,9 @@
     "key": "ABC123", 
     "data": 
         {
-            "account_number": "ABC123", 
-            "initial_balance": 4000, 
-            "min_balance": 100, 
-            "customer_id": "CUSTBOB"
+            "accountNumber": "ABC123", 
+            "initialBalance": 4000, 
+            "minBalance": 100, 
+            "customerId": "CUSTBOB"
         }
 }
