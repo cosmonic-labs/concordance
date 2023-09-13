@@ -25,7 +25,7 @@ spec:
           properties:
             target: redis
             values:
-              URL: redis://redis:6379
+              URL: redis://127.0.0.1:6379
 
     - name: aggregate
       type: actor
