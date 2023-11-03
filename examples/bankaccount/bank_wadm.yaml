@@ -59,7 +59,7 @@ spec:
             values:
               ROLE: process_manager
               KEY: wireTransferId
-              NAME: interbankxer
+              NAME: interbankxfer
               INTEREST: '{"start":"wire_transfer_initiated","advance":["funds_reserved","wire_transfer_succeeded","wire_transfer_failed"],"stop":["funds_committed","funds_released"]}'
     
     - name: concordance
