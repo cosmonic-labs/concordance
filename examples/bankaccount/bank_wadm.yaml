@@ -19,6 +19,7 @@ spec:
           properties:
             target: concordance
             values:
+              NAME: bankaccount_projector
               ROLE: projector
               INTEREST: account_created,funds_deposited,funds_released,funds_reserved,funds_withdrawn,wire_transfer_initiated
         - type: linkdef
@@ -42,7 +43,7 @@ spec:
               ROLE: aggregate
               INTEREST: bankaccount
               NAME: bankaccount
-              KEY: account_number
+              KEY: accountNumber
               
     - name: processmanager
       type: actor
@@ -58,6 +59,7 @@ spec:
             values:
               ROLE: process_manager
               KEY: wireTransferId
+              NAME: interbankxer
               INTEREST: '{"start":"wire_transfer_initiated","advance":["funds_reserved","wire_transfer_succeeded","wire_transfer_failed"],"stop":["funds_committed","funds_released"]}'
     
     - name: concordance
@@ -68,7 +70,7 @@ spec:
         link_name: default
 
     - name: redis
-     type: capability
-     properties:
-       image: wasmcloud.azurecr.io/kvredis:0.21.0
-       contract: wasmcloud:keyvalue
+      type: capability
+      properties:
+        image: wasmcloud.azurecr.io/kvredis:0.21.0
+        contract: wasmcloud:keyvalue
