@@ -1,4 +1,4 @@
-name = "Bank Account Aggregate"
+name = "bankaccount_aggregate"
 language = "rust"
 type = "actor"
 

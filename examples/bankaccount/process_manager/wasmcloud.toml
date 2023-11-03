@@ -1,4 +1,4 @@
-name = "Bank Account Process Manager"
+name = "wiretransfer_processmanager"
 language = "rust"
 type = "actor"
 

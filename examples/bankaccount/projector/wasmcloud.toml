@@ -1,4 +1,4 @@
-name = "Bank Account Projector"
+name = "bankaccount_projector"
 language = "rust"
 type = "actor"
 
